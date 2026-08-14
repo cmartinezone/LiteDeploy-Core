@@ -1,32 +1,52 @@
 # Components
 
-Folders are numbered in the order LiteDeploy works. Numbers are for this development repo only. Production still publishes sibling scripts under `Engine\Scripts`.
+LiteDeploy Core splits components by **who runs them**:
 
-## Before a device boots
+| Area | Role | Promotes to |
+| --- | --- | --- |
+| [**Manager**](Manager/) | Administrator tools that prepare BootConfig, share ACLs, and (later) OS/workflow content | Share `Config\`, admin workstation scripts |
+| [**Runtime**](Runtime/) | WinPE / FullOS execution chain started from `startnet` | `Engine\Scripts\` |
 
-| # | Folder | Runs when |
-| ---: | --- | --- |
-| 01 | `01-Config` | An administrator generates `BootConfig.json` for the boot image or share. |
-| — | [WinPEBuilder](https://github.com/cmartinezone/WinPEBuilder) | Builds ISO or `Boot.wim` for WDS/PXE from that config and the WinPE scripts. Separate repository. |
-| — | [DeploymentShare](../DeploymentShare) | Initial share folder layout (`Config`, `Content`, `Engine`, `WorkFlows`, `WorkLogs`). |
-| 02 | `02-DeploymentShareACL` | An administrator creates the share, SMB permissions, and log ACLs. |
-| 03 | `03-LogWriter` | Loaded by later components as soon as WinPE logging starts. |
-| 04 | `04-HostShell` | Loaded by BootInitializer to control the WinPE console. |
-| — | [`04-UiHost`](04-UiHost) | Shared WPF theme/host helpers for PreCheck, SelectWorkflow, Progress. |
+Production script **file names** stay the same (`LiteDeploy.PreCheck.ps1`, etc.). Folder names here are for Core development only.
 
-## On the device
+## Manager
 
-| # | Folder | Runs when |
-| ---: | --- | --- |
-| 05 | `05-BootInitializer` | `startnet.cmd` starts the parent PowerShell process. |
-| 06 | `06-PreCheck` | DeploymentEngine invokes it with `BootObject`; returns a structured result. |
-| 07 | `07-SelectWorkflow` | DeploymentEngine invokes it after PreCheck Continue; returns a structured selection. |
-| 08 | `08-DeploymentEngine` | BootInitializer invokes it with `BootObject`; orchestrates PreCheck → SelectWorkflow → state (Setup later). |
-| 09 | `09-Progress` | Planned as a separate process while the engine runs. |
-| 10 | `10-Credentials` | Offline handoff and FullOS SYSTEM import. Code lives in [DeployVault](https://github.com/cmartinezone/DeployVault) and [WinPECT](https://github.com/cmartinezone/WinPECT). |
+| Folder | What it does |
+| --- | --- |
+| [Config](Manager/Config/) | Generates `BootConfig.json` |
+| [DeploymentShareACL](Manager/DeploymentShareACL/) | Share folders, SMB, and NTFS log isolation |
+| [ImportOSMedia](Manager/ImportOSMedia/) | Planned OS importer → `Content/OperatingSystems/catalog.json` |
+
+Adjacent (separate repos / share tree): [WinPEBuilder](https://github.com/cmartinezone/WinPEBuilder), [DeploymentShare](../DeploymentShare/), DeployVault admin tooling.
+
+## Runtime
+
+| Folder | What it does |
+| --- | --- |
+| [BootInitializer](Runtime/BootInitializer/) | `startnet` parent: config, `Z:`, `BootObject`, starts engine |
+| [DeploymentEngine](Runtime/DeploymentEngine/) | Orchestrates PreCheck → SelectWorkflow → Setup (Setup stubbed) |
+| [PreCheck](Runtime/PreCheck/) | Hardware / source readiness UI |
+| [SelectWorkflow](Runtime/SelectWorkflow/) | Identity, workflow, disk, drivers |
+| [Progress](Runtime/Progress/) | Read-only `DeploymentState.json` UI |
+| [LogWriter](Runtime/LogWriter/) | CMTrace + NDJSON logging |
+| [HostShell](Runtime/HostShell/) | WinPE console geometry / theme |
+| [UiHost](Runtime/UiHost/) | Shared WPF chrome |
+| [Credentials](Runtime/Credentials/) | WinPE → FullOS credential handoff notes ([DeployVault](https://github.com/cmartinezone/DeployVault) / [WinPECT](https://github.com/cmartinezone/WinPECT)) |
+
+## Device chain
+
+```text
+startnet
+  → Runtime/BootInitializer
+  → Runtime/DeploymentEngine
+       → PreCheck → SelectWorkflow → (Setup /NoReboot + handoff)
+  → Progress (separate process)
+  → Credentials / WinPECT
+```
 
 ## Rules
 
-- Put new work in the matching numbered folder, or add the next number at the point it runs.
-- Keep production script names (`LiteDeploy.PreCheck.ps1`, not a new name per folder).
-- `experiments/` is not part of this sequence and does not promote to LiteDeploy.
+- New admin/authoring work → `Manager/`.
+- New WinPE/FullOS execution work → `Runtime/`.
+- Keep production script names unchanged.
+- `experiments/` is not part of Manager or Runtime and does not promote.

@@ -119,7 +119,7 @@ The inline validation rows have fixed height and use `Hidden` instead of `Collap
 ## Configuration path priority
 
 ```text
-<ScriptRoot>\..\01-Config\BootConfig.json
+<ScriptRoot>\..\..\Manager\Config\BootConfig.json
               ↓ if missing
 <ScriptRoot>\Config\BootConfig.json
               ↓ if missing
@@ -128,4 +128,4 @@ The inline validation rows have fixed height and use `Hidden` instead of `Collap
 Show alert and terminate
 ```
 
-This matches the resolution order used by `components\06-PreCheck\LiteDeploy.PreCheck.ps1`.
+This matches the resolution order used by `components\Runtime\PreCheck\LiteDeploy.PreCheck.ps1`.

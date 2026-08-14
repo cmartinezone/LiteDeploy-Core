@@ -1,7 +1,7 @@
 # LiteDeploy WinPE Initialization Engine Documentation
 
-**Script**: `components\05-BootInitializer\LiteDeploy.BootInitilizer.ps1`  
-**Documentation File**: `components\05-BootInitializer\README.md`  
+**Script**: `components\Runtime\BootInitializer\LiteDeploy.BootInitilizer.ps1`  
+**Documentation File**: `components\Runtime\BootInitializer\README.md`  
 **Target Environment**: Windows PE (WinPE 5.1 / 10 / 11) & Windows Host  
 **PowerShell Version**: PowerShell 5.1+ (`Set-StrictMode -Version 2.0`)  
 
@@ -158,7 +158,7 @@ Show-LiteDeployGuiError -Message "Error message text" -Title "LiteDeploy Error" 
 ```
 
 ### `Resolve-LiteDeployEnginePath`
-Resolves `LiteDeploy.DeploymentEngine.ps1` from production `Engine\Scripts` siblings or this repo's `components/08-DeploymentEngine`.
+Resolves `LiteDeploy.DeploymentEngine.ps1` from production `Engine\Scripts` siblings or this repo's `components/Runtime/DeploymentEngine`.
 ```powershell
 $enginePath = Resolve-LiteDeployEnginePath -RootPath "Z:"
 # Returns "...\LiteDeploy.DeploymentEngine.ps1"
@@ -231,4 +231,4 @@ When executed directly (not dot-sourced), `LiteDeploy.BootInitilizer.ps1`:
   * ` [RETRY]   ` — Re-scanning hardware, polling link/IP, or re-prompting credentials (`type="2"`, Yellow)
   * ` [ERROR]   ` — Unrecoverable errors or authentication failures (`type="3"`, Red)
 * **100% History Retention**: Every event—including success states, fast-path checks, authentication failures, retries, and cancellation pauses—is recorded persistently in both log targets.
-* **Specification Document**: Full details, component tags, and code examples are documented in [LogWriter README](../03-LogWriter/README.md).
+* **Specification Document**: Full details, component tags, and code examples are documented in [LogWriter README](../LogWriter/README.md).

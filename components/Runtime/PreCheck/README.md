@@ -86,7 +86,7 @@ param(
 
 Pre-Check resolves its configuration file relative to `$PSScriptRoot` without relying on volatile RAM (`X:\`) or drive-letter scanning:
 
-1. `..\01-Config\BootConfig.json` (LiteDeploy Core component layout)
+1. `..\..\Manager\Config\BootConfig.json` (LiteDeploy Core component layout)
 2. `Config\BootConfig.json`
 3. `BootConfig.json`
 

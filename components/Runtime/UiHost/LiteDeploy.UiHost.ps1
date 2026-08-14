@@ -6,7 +6,7 @@
     Dot-source into PreCheck, SelectWorkflow, Progress (and future WPF screens):
 
         . (Join-Path $PSScriptRoot "LiteDeploy.UiHost.ps1")
-        # or development: ..\04-UiHost\LiteDeploy.UiHost.ps1
+        # or development: ..\UiHost\LiteDeploy.UiHost.ps1
 
     Provides shared WinPE-safe WPF chrome without merging the three screens:
 
@@ -525,7 +525,7 @@ function Import-LiteDeployUiHost {
 
     $candidates = @(
         (Join-Path $FromScriptRoot "LiteDeploy.UiHost.ps1"),
-        (Join-Path $FromScriptRoot "..\04-UiHost\LiteDeploy.UiHost.ps1")
+        (Join-Path $FromScriptRoot "..\UiHost\LiteDeploy.UiHost.ps1")
     )
 
     foreach ($candidate in $candidates) {
@@ -535,7 +535,7 @@ function Import-LiteDeployUiHost {
         }
     }
 
-    throw "LiteDeploy.UiHost.ps1 was not found beside the caller or under components/04-UiHost."
+    throw "LiteDeploy.UiHost.ps1 was not found beside the caller or under components/Runtime/UiHost."
 }
 
 #endregion

@@ -118,7 +118,7 @@ function Resolve-LiteDeployEnginePath {
     if (-not [string]::IsNullOrWhiteSpace($PSScriptRoot)) {
         $candidates.Add((Join-Path $PSScriptRoot "LiteDeploy.DeploymentEngine.ps1"))
         # Development repository layout (numbered component folders).
-        $candidates.Add((Join-Path $PSScriptRoot "..\08-DeploymentEngine\LiteDeploy.DeploymentEngine.ps1"))
+        $candidates.Add((Join-Path $PSScriptRoot "..\DeploymentEngine\LiteDeploy.DeploymentEngine.ps1"))
     }
 
     if (-not [string]::IsNullOrWhiteSpace($RootPath)) {

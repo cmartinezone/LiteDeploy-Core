@@ -112,10 +112,10 @@ function Resolve-EngineSiblingScript {
     # Development repository layout (numbered component folders).
     switch -Wildcard ($FileName) {
         "LiteDeploy.PreCheck.ps1" {
-            $candidates.Add((Join-Path $PSScriptRoot "..\06-PreCheck\$FileName"))
+            $candidates.Add((Join-Path $PSScriptRoot "..\PreCheck\$FileName"))
         }
         "LiteDeploy.SelectWorkFlow.ps1" {
-            $candidates.Add((Join-Path $PSScriptRoot "..\07-SelectWorkflow\$FileName"))
+            $candidates.Add((Join-Path $PSScriptRoot "..\SelectWorkflow\$FileName"))
         }
     }
 
@@ -285,12 +285,12 @@ Write-EngineLog "Deployment engine starting (WinPE Phase A orchestration)." -Lev
 
 $preCheckPath = Resolve-EngineSiblingScript -FileName "LiteDeploy.PreCheck.ps1"
 if (-not $preCheckPath) {
-    throw "LiteDeploy.PreCheck.ps1 was not found beside the engine or under components/06-PreCheck."
+    throw "LiteDeploy.PreCheck.ps1 was not found beside the engine or under components/Runtime/PreCheck."
 }
 
 $selectWorkflowPath = Resolve-EngineSiblingScript -FileName "LiteDeploy.SelectWorkFlow.ps1"
 if (-not $selectWorkflowPath) {
-    throw "LiteDeploy.SelectWorkFlow.ps1 was not found beside the engine or under components/07-SelectWorkflow."
+    throw "LiteDeploy.SelectWorkFlow.ps1 was not found beside the engine or under components/Runtime/SelectWorkflow."
 }
 
 Write-EngineLog "Invoking PreCheck: $preCheckPath" -Level "INFO"

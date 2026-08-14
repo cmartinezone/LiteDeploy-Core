@@ -1,7 +1,7 @@
 # LiteDeploy Log Writer Module Documentation
 
-**Script File**: `components\03-LogWriter\LiteDeploy.LogWriter.ps1`  
-**Documentation File**: `components\03-LogWriter\README.md`  
+**Script File**: `components\Runtime\LogWriter\LiteDeploy.LogWriter.ps1`  
+**Documentation File**: `components\Runtime\LogWriter\README.md`  
 **Target Environment**: Windows PE (WinPE 5.1 / 10 / 11) & Windows Host  
 **PowerShell Version**: PowerShell 5.1+ (`Set-StrictMode -Version 2.0`)  
 
@@ -11,7 +11,7 @@
 
 `LiteDeploy.LogWriter.ps1` is an independent, reusable logging engine module for **LiteDeploy Core**.
 
-It provides standardized dual logging across all LiteDeploy components (`05-BootInitializer`, `06-PreCheck`, `07-SelectWorkflow`, `08-DeploymentEngine`, `09-Progress`):
+It provides standardized dual logging across all LiteDeploy components (`BootInitializer`, `PreCheck`, `SelectWorkflow`, `DeploymentEngine`, `Progress`):
 1. **Real-Time Console Output**: Writes color-coded visual feedback directly to the console screen.
 2. **Microsoft CMTrace XML Logging**: Appends timestamped XML log entries to `$env:SystemDrive\~LiteDeploy\WorkLogs\LiteDeploy.Execution.log` (compatible with `CMTrace.exe`).
 3. **Structured NDJSON Logging**: Appends single-line JSON log objects to `$env:SystemDrive\~LiteDeploy\WorkLogs\LiteDeploy.Execution.json` (compatible with Splunk, Azure, and cloud log analytics).
@@ -23,7 +23,7 @@ It provides standardized dual logging across all LiteDeploy components (`05-Boot
 ```text
 LiteDeploy Core\
 └── components\
-    └── 03-LogWriter\
+    └── LogWriter\
         ├── LiteDeploy.LogWriter.ps1
         └── README.md
 ```
@@ -74,13 +74,13 @@ Clear-LiteDeployLog -LogFileName "LiteDeploy.Execution.log"
 
 ## 4. Usage Patterns for Other Components
 
-Other LiteDeploy modules (`06-PreCheck`, `07-SelectWorkflow`, `08-DeploymentEngine`, `09-Progress`) can consume `LiteDeploy.LogWriter.ps1` in two simple ways:
+Other LiteDeploy modules (`PreCheck`, `SelectWorkflow`, `DeploymentEngine`, `Progress`) can consume `LiteDeploy.LogWriter.ps1` in two simple ways:
 
 ### Pattern A: Dot-Sourcing the Module (Recommended)
 
 ```powershell
 # Dot-source the LogWriter module at component startup
-. "$PSScriptRoot\..\03-LogWriter\LiteDeploy.LogWriter.ps1"
+. "$PSScriptRoot\..\LogWriter\LiteDeploy.LogWriter.ps1"
 
 # Call Write-LiteDeployLog with component tag
 Write-LiteDeployLog -Message "Evaluating TPM 2.0 State..." -Level "CHECK" -Component "PreCheck"
@@ -90,7 +90,7 @@ Write-LiteDeployLog -Message "TPM 2.0 Enabled & Active" -Level "SUCCESS" -Compon
 ### Pattern B: Direct Script Invocation
 
 ```powershell
-& "$PSScriptRoot\..\03-LogWriter\LiteDeploy.LogWriter.ps1" -Message "Applying WIM Image..." -Level "INFO" -Component "Progress"
+& "$PSScriptRoot\..\LogWriter\LiteDeploy.LogWriter.ps1" -Message "Applying WIM Image..." -Level "INFO" -Component "Progress"
 ```
 
 ---

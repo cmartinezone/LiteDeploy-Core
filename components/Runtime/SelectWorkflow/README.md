@@ -62,7 +62,7 @@ The main script dot-sources the picker using `$PSScriptRoot`, so the two active 
 
 The UI resolves `BootConfig.json` in the same priority order as `LiteDeploy.PreCheck.ps1`:
 
-1. `..\01-Config\BootConfig.json`
+1. `..\..\Manager\Config\BootConfig.json`
 2. `Config\BootConfig.json`
 3. `BootConfig.json`
 
@@ -212,7 +212,7 @@ Recommended WinPE optional components:
 - WinPE-PowerShell
 - WinPE-StorageWMI
 
-The primary window uses `Get-LiteDeployUiWindowSize` from [UiHost](../04-UiHost) for adaptive sizing (same Light/Dark palette and button styles as PreCheck). A full Viewbox design-surface wrap can still be added later for very low resolutions.
+The primary window uses `Get-LiteDeployUiWindowSize` from [UiHost](../UiHost) for adaptive sizing (same Light/Dark palette and button styles as PreCheck). A full Viewbox design-surface wrap can still be added later for very low resolutions.
 
 The folder picker uses a fixed `440 × 480` window.
 

@@ -49,7 +49,7 @@ startnet.cmd
 
 ### Boot initialization
 
-Location: `components/05-BootInitializer/LiteDeploy.BootInitilizer.ps1`
+Location: `components/Runtime/BootInitializer/LiteDeploy.BootInitilizer.ps1`
 
 Implemented:
 
@@ -69,7 +69,7 @@ Required changes:
 
 ### PreCheck UI
 
-Location: `components/06-PreCheck/LiteDeploy.PreCheck.ps1`
+Location: `components/Runtime/PreCheck/LiteDeploy.PreCheck.ps1`
 
 Implemented:
 
@@ -88,8 +88,8 @@ Required changes:
 
 Locations:
 
-- `components/07-SelectWorkflow/LiteDeploy.SelectWorkFlow.ps1`
-- `components/07-SelectWorkflow/LiteDeploy.SelecWorkflowDriverPicker.ps1`
+- `components/Runtime/SelectWorkflow/LiteDeploy.SelectWorkFlow.ps1`
+- `components/Runtime/SelectWorkflow/LiteDeploy.SelecWorkflowDriverPicker.ps1`
 
 Implemented:
 
@@ -114,9 +114,9 @@ Required changes:
 
 Locations:
 
-- `ImportOSMedia/LiteDeploy.ImportOSMedia.ps1`
-- `ImportOSMedia/LiteDeploy.ImportOSMediaGUI.ps1`
-- `ImportOSMedia/README.md`
+- `components/Manager/ImportOSMedia/LiteDeploy.ImportOSMedia.ps1` (planned)
+- `components/Manager/ImportOSMedia/LiteDeploy.ImportOSMediaGUI.ps1` (planned)
+- `components/Manager/ImportOSMedia/README.md`
 
 Implemented:
 
@@ -143,7 +143,7 @@ Required additions:
 
 ### Progress UI
 
-Location: `components/09-Progress/LiteDeploy.Progress.ps1`
+Location: `components/Runtime/Progress/LiteDeploy.Progress.ps1`
 
 Implemented:
 
@@ -170,7 +170,7 @@ Locations:
 
 - [DeployVault](https://github.com/cmartinezone/DeployVault) — encrypted share vault (separate repository)
 - [WinPECT](https://github.com/cmartinezone/WinPECT) — WinPE to FullOS credential transfer (separate repository)
-- `components/10-Credentials/` — LiteDeploy integration notes and [EndToEndDeploymentGuide.md](../../components/10-Credentials/EndToEndDeploymentGuide.md)
+- `components/Runtime/Credentials/` — LiteDeploy integration notes and [EndToEndDeploymentGuide.md](../../components/Runtime/Credentials/EndToEndDeploymentGuide.md)
 
 Implemented:
 

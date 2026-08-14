@@ -1,7 +1,7 @@
 # UiHost — shared WPF chrome for LiteDeploy
 
 **Script:** `LiteDeploy.UiHost.ps1`  
-**Plan:** [LITEDEPLOY_UI_HOST.md](../../docs/architecture/LITEDEPLOY_UI_HOST.md)
+**Plan:** [LITEDEPLOY_UI_HOST.md](../../../docs/architecture/LITEDEPLOY_UI_HOST.md)
 
 Dot-sourced toolkit used by PreCheck, SelectWorkflow, and Progress. It does **not** replace those screens.
 
@@ -39,7 +39,7 @@ Engine\Scripts\
 ```powershell
 $uiHost = Join-Path $PSScriptRoot "LiteDeploy.UiHost.ps1"
 if (-not (Test-Path -LiteralPath $uiHost)) {
-    $uiHost = Join-Path $PSScriptRoot "..\04-UiHost\LiteDeploy.UiHost.ps1"
+    $uiHost = Join-Path $PSScriptRoot "..\UiHost\LiteDeploy.UiHost.ps1"
 }
 . $uiHost
 

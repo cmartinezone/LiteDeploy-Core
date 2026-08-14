@@ -62,13 +62,13 @@ Generates target `BootConfig.json` configuration files for deployment targets (`
 
 ```powershell
 # Generate Network Deployment Share configuration (BootConfig.json)
-.\components\01-Config\LiteDeploy.SetConfig.ps1 -BootConfig -Mode DeploymentShare -NetworkPath "\\Server01\DeploymentShare$" -Environment "Production"
+.\components\Manager\Config\LiteDeploy.SetConfig.ps1 -BootConfig -Mode DeploymentShare -NetworkPath "\\Server01\DeploymentShare$" -Environment "Production"
 
 # Generate Minimal PXE / Boot.wim configuration
-.\components\01-Config\LiteDeploy.SetConfig.ps1 -BootConfig -Mode BootWim -NetworkPath "\\PXEServer\Share$" -Comment "PXE Boot Setup"
+.\components\Manager\Config\LiteDeploy.SetConfig.ps1 -BootConfig -Mode BootWim -NetworkPath "\\PXEServer\Share$" -Comment "PXE Boot Setup"
 
 # Generate Standalone Offline USB Media configuration
-.\components\01-Config\LiteDeploy.SetConfig.ps1 -BootConfig -Mode Media -Environment "Production" -Comment "USB Offline Media"
+.\components\Manager\Config\LiteDeploy.SetConfig.ps1 -BootConfig -Mode Media -Environment "Production" -Comment "USB Offline Media"
 ```
 
 > For full schema property details and reference templates, see **Config/README.md**.

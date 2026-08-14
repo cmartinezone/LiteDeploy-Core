@@ -11,10 +11,10 @@ param(
 # ------------------------------------------------------------------------------
 $uiHostPath = Join-Path $PSScriptRoot "LiteDeploy.UiHost.ps1"
 if (-not (Test-Path -LiteralPath $uiHostPath)) {
-    $uiHostPath = Join-Path $PSScriptRoot "..\04-UiHost\LiteDeploy.UiHost.ps1"
+    $uiHostPath = Join-Path $PSScriptRoot "..\UiHost\LiteDeploy.UiHost.ps1"
 }
 if (-not (Test-Path -LiteralPath $uiHostPath)) {
-    throw "LiteDeploy.UiHost.ps1 was not found beside SelectWorkflow or under components/04-UiHost."
+    throw "LiteDeploy.UiHost.ps1 was not found beside SelectWorkflow or under components/Runtime/UiHost."
 }
 . $uiHostPath
 
@@ -66,7 +66,7 @@ if (Test-Path -LiteralPath $driverPathPickerScript) {
 # Resolve BootConfig.json in the same order as LiteDeploy.PreCheck.ps1.
 function Find-Configuration {
     $paths = @(
-        (Join-Path $PSScriptRoot "..\01-Config\BootConfig.json"),
+        (Join-Path $PSScriptRoot "..\..\Manager\Config\BootConfig.json"),
         (Join-Path $PSScriptRoot "Config\BootConfig.json"),
         (Join-Path $PSScriptRoot "BootConfig.json")
     )

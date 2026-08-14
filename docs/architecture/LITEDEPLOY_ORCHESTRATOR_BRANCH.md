@@ -7,7 +7,7 @@ LiteDeploy engine work integrates on a dedicated test branch, not on `main`.
 | Branch | Role |
 | --- | --- |
 | `main` | Stable product baseline. Do not land in-progress DeploymentEngine / WinPE orchestration here. |
-| `cursor/engine-orchestration-bd4d` | **Orchestrator branch.** BootInitializer → DeploymentEngine → PreCheck / SelectWorkflow / UiHost / Progress wiring. |
+| `cursor/engine-orchestration-bd4d` | **Orchestrator branch.** Runtime orchestration + Manager/Runtime layout. |
 
 ## PR rules
 
@@ -26,14 +26,16 @@ LiteDeploy engine work integrates on a dedicated test branch, not on `main`.
 
 ## Current orchestrator contents
 
-- `08-DeploymentEngine` — Phase A orchestration (Setup still stubbed)
-- Structured PreCheck / SelectWorkflow return contracts
-- `04-UiHost` — shared WPF chrome
-- Progress `09`, Credentials `10`
-- `ComputerSetup.DriveSelection` / `ComputerSetup.ImageEngine` (`Setup.exe` | `Dism.exe`) on share BootConfig
-- Workflow v1 schema + `StandardWorkflow` / `IntuneReadyWorkflow` examples under `DeploymentShare/WorkFlows`
+- `components/Manager/` — Config, DeploymentShareACL, ImportOSMedia placeholder  
+- `components/Runtime/` — BootInitializer, DeploymentEngine, PreCheck, SelectWorkflow, Progress, UiHost, …  
+- DeploymentEngine Phase A orchestration (Setup still stubbed)  
+- Structured PreCheck / SelectWorkflow return contracts  
+- `ComputerSetup.DriveSelection` / `ComputerSetup.ImageEngine` on BootConfig  
+- Workflow v1 schema + Standard / Intune examples under `DeploymentShare/WorkFlows`
 
 ## Related
 
 - [LITEDEPLOY_DEPLOYMENT_PLAN.md](LITEDEPLOY_DEPLOYMENT_PLAN.md) — runtime orchestration sequence  
 - [LITEDEPLOY_UI_HOST.md](LITEDEPLOY_UI_HOST.md) — shared UI chrome  
+- [LITEDEPLOY_WORKFLOW_SCHEMA.md](LITEDEPLOY_WORKFLOW_SCHEMA.md) — workflow JSON reference  
+- [components/README.md](../../components/README.md) — Manager vs Runtime map  

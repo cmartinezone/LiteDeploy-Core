@@ -89,15 +89,15 @@ LiteDeploy supports three distinct deployment modes:
 
 ### Generate Configuration for Network Deployment Share
 ```powershell
-.\components\01-Config\LiteDeploy.SetConfig.ps1 -BootConfig -Mode DeploymentShare -NetworkPath "\\Server01\DeploymentShare$" -Environment "Production"
+.\components\Manager\Config\LiteDeploy.SetConfig.ps1 -BootConfig -Mode DeploymentShare -NetworkPath "\\Server01\DeploymentShare$" -Environment "Production"
 ```
 
 ### Generate Minimal Configuration for PXE / Boot.wim
 ```powershell
-.\components\01-Config\LiteDeploy.SetConfig.ps1 -BootConfig -Mode BootWim -NetworkPath "\\PXEServer\Share$" -Comment "PXE Boot Setup"
+.\components\Manager\Config\LiteDeploy.SetConfig.ps1 -BootConfig -Mode BootWim -NetworkPath "\\PXEServer\Share$" -Comment "PXE Boot Setup"
 ```
 
 ### Generate Configuration for Offline USB Media
 ```powershell
-.\components\01-Config\LiteDeploy.SetConfig.ps1 -BootConfig -Mode Media -Environment "Production" -Comment "USB Offline Media"
+.\components\Manager\Config\LiteDeploy.SetConfig.ps1 -BootConfig -Mode Media -Environment "Production" -Comment "USB Offline Media"
 ```

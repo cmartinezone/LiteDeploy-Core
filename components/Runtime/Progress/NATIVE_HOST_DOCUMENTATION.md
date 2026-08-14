@@ -3,7 +3,7 @@
 This document provides complete technical specifications, architecture diagrams, parameter reference, and deployment guidelines for the promoted **LiteDeploy Native Progress Host System** (`LiteDeploy.Progress.ps1`).
 
 > [!NOTE]
-> For dedicated WinPE Pre-Check architecture & specs, see [Pre-Check Documentation](../06-PreCheck/README.md).
+> For dedicated WinPE Pre-Check architecture & specs, see [Pre-Check Documentation](../PreCheck/README.md).
 
 ---
 
@@ -11,7 +11,7 @@ This document provides complete technical specifications, architecture diagrams,
 
 LiteDeploy provides a native, zero-dependency progress UI written entirely in PowerShell. It replaces legacy HTML Applications (`.HTA` / `mshta.exe`), Node.js, or external web browsers with a pure-WPF progress host: **`LiteDeploy.Progress.ps1`**.
 
-Shared Light/Dark chrome (assemblies, palette, backdrop, control lookup) comes from **[`LiteDeploy.UiHost.ps1`](../04-UiHost/LiteDeploy.UiHost.ps1)** — see [LITEDEPLOY_UI_HOST.md](../../docs/architecture/LITEDEPLOY_UI_HOST.md). Progress keeps its own FullOS/WinPE layouts and `DeploymentState.json` polling.
+Shared Light/Dark chrome (assemblies, palette, backdrop, control lookup) comes from **[`LiteDeploy.UiHost.ps1`](../UiHost/LiteDeploy.UiHost.ps1)** — see [LITEDEPLOY_UI_HOST.md](../../../docs/architecture/LITEDEPLOY_UI_HOST.md). Progress keeps its own FullOS/WinPE layouts and `DeploymentState.json` polling.
 
 The task sequence runtime engine (`LiteDeploy.Runtime.ps1`) consumes this progress script during execution, driving real-time UI updates via `Set-LiteDeployProgress` while persisting state updates to `DeploymentState.json` for reboot/restart recovery.
 

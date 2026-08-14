@@ -9,4 +9,4 @@ LiteDeploy does not keep credential-handling code in this repository. Those comp
 
 Vault files (`localvault.bin`, `localseed.bin`) stay on the share. They are never copied into this repo or onto the target OS.
 
-Integration rules for the LiteDeploy engine are in [EndToEndDeploymentGuide.md](EndToEndDeploymentGuide.md) and [the deployment plan](../../docs/architecture/LITEDEPLOY_DEPLOYMENT_PLAN.md).
+Integration rules for the LiteDeploy engine are in [EndToEndDeploymentGuide.md](EndToEndDeploymentGuide.md) and [the deployment plan](../../../docs/architecture/LITEDEPLOY_DEPLOYMENT_PLAN.md).

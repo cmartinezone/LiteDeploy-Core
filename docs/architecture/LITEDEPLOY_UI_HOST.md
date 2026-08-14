@@ -23,7 +23,7 @@ LiteDeploy.UiHost.ps1          Shared toolkit (dot-sourced)
 | Engine contracts | Structured returns stay clear | Easy to re-couple Continue → next screen |
 | Testing | Theme/helpers unit-testable | Must drive full wizard to test chrome |
 
-## Shared responsibilities (`components/04-UiHost`)
+## Shared responsibilities (`components/Runtime/UiHost`)
 
 1. WPF assembly load + WinPE software rendering  
 2. Optional STA relaunch guard (never when `BootObject` is bound)  
@@ -45,9 +45,9 @@ LiteDeploy.UiHost.ps1          Shared toolkit (dot-sourced)
 Copy `LiteDeploy.UiHost.ps1` to `Engine\Scripts\` beside the UI scripts. Callers resolve:
 
 1. `$PSScriptRoot\LiteDeploy.UiHost.ps1` (production)
-2. `$PSScriptRoot\..\04-UiHost\LiteDeploy.UiHost.ps1` (Core repo)
+2. `$PSScriptRoot\..\UiHost\LiteDeploy.UiHost.ps1` (Core repo: components/Runtime/UiHost)
 
 ## Related
 
-- [NATIVE_HOST_DOCUMENTATION.md](../../components/09-Progress/NATIVE_HOST_DOCUMENTATION.md) — Progress-specific host behavior  
+- [NATIVE_HOST_DOCUMENTATION.md](../../components/Runtime/Progress/NATIVE_HOST_DOCUMENTATION.md) — Progress-specific host behavior  
 - [LITEDEPLOY_DEPLOYMENT_PLAN.md](LITEDEPLOY_DEPLOYMENT_PLAN.md) — engine orchestration and UI return contracts  

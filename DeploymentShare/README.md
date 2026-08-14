@@ -44,6 +44,6 @@ DeploymentShare\
 
 Approved Core scripts promote into `Engine\Scripts`. [WinPEBuilder](https://github.com/cmartinezone/WinPEBuilder) writes ISO/`Boot.wim` under `Content\BootMedia`. [DeployVault](https://github.com/cmartinezone/DeployVault) stays on the share but is not part of this skeleton (no vault files in git).
 
-[LiteDeploy.SetDeploymentShareAcl.ps1](../components/02-DeploymentShareACL/LiteDeploy.SetDeploymentShareAcl.ps1) applies SMB and NTFS permissions onto a provisioned copy of this tree.
+[LiteDeploy.SetDeploymentShareAcl.ps1](../components/Manager/DeploymentShareACL/LiteDeploy.SetDeploymentShareAcl.ps1) applies SMB and NTFS permissions onto a provisioned copy of this tree.
 
 OS, package, and driver catalogs here remain placeholders until ImportOSMedia / package publishing. Workflow schema and examples are the v1 reference contract — see [LITEDEPLOY_WORKFLOW_SCHEMA.md](../docs/architecture/LITEDEPLOY_WORKFLOW_SCHEMA.md).

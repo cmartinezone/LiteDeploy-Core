@@ -81,10 +81,10 @@ $script:StatePath = [System.IO.Path]::GetFullPath($targetStateFile)
 # Ensure Single-Threaded Apartment (STA) Mode for WPF Compatibility in PowerShell 5.1
 $uiHostPath = Join-Path $scriptDir "LiteDeploy.UiHost.ps1"
 if (-not (Test-Path -LiteralPath $uiHostPath)) {
-    $uiHostPath = Join-Path $scriptDir "..\04-UiHost\LiteDeploy.UiHost.ps1"
+    $uiHostPath = Join-Path $scriptDir "..\UiHost\LiteDeploy.UiHost.ps1"
 }
 if (-not (Test-Path -LiteralPath $uiHostPath)) {
-    throw "LiteDeploy.UiHost.ps1 was not found beside Progress or under components/04-UiHost."
+    throw "LiteDeploy.UiHost.ps1 was not found beside Progress or under components/Runtime/UiHost."
 }
 . $uiHostPath
 
