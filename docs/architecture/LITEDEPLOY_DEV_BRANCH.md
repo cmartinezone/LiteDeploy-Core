@@ -26,7 +26,7 @@ LiteDeploy engine and Manager/Runtime work integrates on **`dev`**, not on `main
 
 ## Current `dev` contents
 
-- `components/Manager/` — Config, DeploymentShareACL, ImportOSMedia placeholder  
+- `components/Manager/` — Config, DeploymentShareACL, ImportOEMDrivers, ImportOSMedia placeholder  
 - `components/Runtime/` — BootInitializer, DeploymentEngine, PreCheck, SelectWorkflow, Progress, UiHost, …  
 - DeploymentEngine Phase A orchestration (Setup still stubbed)  
 - Structured PreCheck / SelectWorkflow return contracts  

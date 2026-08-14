@@ -1,0 +1,566 @@
+<#
+.SYNOPSIS
+    Imports an OEM driver pack into the LiteDeploy drivers catalog and share layout.
+
+.DESCRIPTION
+    LiteDeployManager tool. Places FullOS drivers under Extracted\ and optional WinPE
+    drivers under WinPE\, then upserts Content\Drivers\catalog.json using the v1
+    drivers catalog contract (manufacturerId from WMI, systemSku, format, dates).
+
+    Does not download vendor catalogs yet — pass a local .cab / .exe / extracted folder.
+    Future online sync can learn from OEM catalog patterns (e.g. FFU) while keeping
+    this LiteDeploy-owned importer and catalog shape.
+
+.PARAMETER DeploymentRoot
+    Deployment share root (contains Content\Drivers).
+
+.PARAMETER ManufacturerId
+    Exact Win32_ComputerSystem.Manufacturer value (e.g. "Dell Inc.").
+
+.PARAMETER ManufacturerName
+    Friendly manufacturer label / folder name (e.g. "Dell").
+
+.PARAMETER ModelId
+    Stable model id within the manufacturer (e.g. "latitude-7450").
+
+.PARAMETER ModelName
+    Friendly model display name.
+
+.PARAMETER SystemSku
+    One or more SystemSKU / Machine Type / BaseBoardProduct match keys.
+
+.PARAMETER Version
+    Driver pack version label.
+
+.PARAMETER ReleaseDate
+    Vendor release date (YYYY-MM-DD). Defaults to today when omitted.
+
+.PARAMETER Format
+    Original pack format: exe or cab. Auto-detected from SourcePath when possible.
+
+.PARAMETER DownloadLink
+    Optional original vendor URL.
+
+.PARAMETER SourcePath
+    Local .cab, .exe, or folder of extracted FullOS drivers.
+
+.PARAMETER WinPESourcePath
+    Optional folder of WinPE storage/NIC drivers to copy into WinPE\.
+
+.PARAMETER FolderName
+    Model folder leaf under Content\Drivers\<ManufacturerName>\. Defaults to ModelName.
+
+.PARAMETER Enabled
+    Catalog enabled flag. Default $true.
+
+.PARAMETER Force
+    Overwrite existing Extracted\ / WinPE\ content and replace catalog model entry fields.
+
+.EXAMPLE
+    .\LiteDeploy.ImportOEMDrivers.ps1 `
+      -DeploymentRoot "D:\DeploymentShare" `
+      -ManufacturerId "Dell Inc." `
+      -ManufacturerName "Dell" `
+      -ModelId "latitude-7450" `
+      -ModelName "Latitude 7450" `
+      -SystemSku "0C09" `
+      -Version "2026.01" `
+      -SourcePath "C:\Temp\Latitude_7450.cab"
+
+.EXAMPLE
+    .\LiteDeploy.ImportOEMDrivers.ps1 `
+      -DeploymentRoot "\\Server\DeploymentShare$" `
+      -ManufacturerId "LENOVO" `
+      -ManufacturerName "Lenovo" `
+      -ModelId "thinkpad-x1-carbon-gen11" `
+      -ModelName "ThinkPad X1 Carbon Gen 11" `
+      -SystemSku @("21KC","21KC004AUS") `
+      -Version "2026.03" `
+      -Format exe `
+      -SourcePath "C:\Temp\tp_x1_extracted" `
+      -WinPESourcePath "C:\Temp\tp_x1_winpe"
+#>
+
+[CmdletBinding(SupportsShouldProcess = $true)]
+param(
+    [Parameter(Mandatory = $true)]
+    [string]$DeploymentRoot,
+
+    [Parameter(Mandatory = $true)]
+    [string]$ManufacturerId,
+
+    [Parameter(Mandatory = $true)]
+    [string]$ManufacturerName,
+
+    [Parameter(Mandatory = $true)]
+    [string]$ModelId,
+
+    [Parameter(Mandatory = $true)]
+    [string]$ModelName,
+
+    [Parameter(Mandatory = $true)]
+    [string[]]$SystemSku,
+
+    [Parameter(Mandatory = $true)]
+    [string]$Version,
+
+    [Parameter(Mandatory = $false)]
+    [string]$ReleaseDate = "",
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("exe", "cab")]
+    [string]$Format = "",
+
+    [Parameter(Mandatory = $false)]
+    [string]$DownloadLink = "",
+
+    [Parameter(Mandatory = $true)]
+    [string]$SourcePath,
+
+    [Parameter(Mandatory = $false)]
+    [string]$WinPESourcePath = "",
+
+    [Parameter(Mandatory = $false)]
+    [string]$FolderName = "",
+
+    [Parameter(Mandatory = $false)]
+    [bool]$Enabled = $true,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$Force
+)
+
+Set-StrictMode -Version 2.0
+$ErrorActionPreference = "Stop"
+
+function Write-ImportLog {
+    param(
+        [string]$Message,
+        [ConsoleColor]$ForegroundColor = [ConsoleColor]::Cyan
+    )
+    Write-Host " [ImportOEMDrivers]  $Message" -ForegroundColor $ForegroundColor
+}
+
+function Test-IsoDate {
+    param([string]$Value)
+    return [bool]($Value -match '^\d{4}-\d{2}-\d{2}$')
+}
+
+function Get-NormalizedSkuList {
+    param([string[]]$Values)
+
+    $list = [System.Collections.Generic.List[string]]::new()
+    foreach ($value in @($Values)) {
+        if ([string]::IsNullOrWhiteSpace($value)) { continue }
+        $trimmed = $value.Trim()
+        $exists = $false
+        foreach ($existing in $list) {
+            if ([string]::Equals($existing, $trimmed, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $exists = $true
+                break
+            }
+        }
+        if (-not $exists) { $list.Add($trimmed) }
+    }
+    if ($list.Count -eq 0) {
+        throw "SystemSku must contain at least one non-empty value."
+    }
+    return @($list.ToArray())
+}
+
+function New-RelativeSharePath {
+    param(
+        [string]$Root,
+        [string]$FullPath
+    )
+
+    $rootFull = (Resolve-Path -LiteralPath $Root).Path.TrimEnd('\', '/')
+    $full = (Resolve-Path -LiteralPath $FullPath).Path
+    if (-not $full.StartsWith($rootFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Path '$FullPath' is outside deployment root '$Root'."
+    }
+    $relative = $full.Substring($rootFull.Length).TrimStart('\', '/')
+    return ($relative -replace '\\', '/')
+}
+
+function Ensure-EmptyDirectory {
+    param(
+        [string]$Path,
+        [switch]$Force
+    )
+
+    if (Test-Path -LiteralPath $Path) {
+        $children = @(Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue)
+        if ($children.Count -gt 0 -and -not $Force) {
+            throw "Directory already has content: $Path (use -Force to replace)."
+        }
+        if ($Force -and $children.Count -gt 0) {
+            Remove-Item -LiteralPath $Path -Recurse -Force
+        }
+    }
+    if (-not (Test-Path -LiteralPath $Path)) {
+        $null = New-Item -Path $Path -ItemType Directory -Force
+    }
+}
+
+function Copy-DriverTree {
+    param(
+        [string]$Source,
+        [string]$Destination,
+        [switch]$Force
+    )
+
+    if (-not (Test-Path -LiteralPath $Source -PathType Container)) {
+        throw "Source folder not found: $Source"
+    }
+    Ensure-EmptyDirectory -Path $Destination -Force:$Force
+    Copy-Item -Path (Join-Path $Source '*') -Destination $Destination -Recurse -Force
+}
+
+function Expand-CabToFolder {
+    param(
+        [string]$CabPath,
+        [string]$Destination,
+        [switch]$Force
+    )
+
+    Ensure-EmptyDirectory -Path $Destination -Force:$Force
+    $expand = Get-Command expand.exe -ErrorAction SilentlyContinue
+    if (-not $expand) {
+        throw "expand.exe was not found. Cannot extract CAB: $CabPath"
+    }
+
+    # expand.exe extracts matching files into the destination directory.
+    $args = @("`"$CabPath`"", "-F:*", "`"$Destination`"")
+    $p = Start-Process -FilePath $expand.Source -ArgumentList $args -Wait -PassThru -NoNewWindow
+    if ($p.ExitCode -ne 0) {
+        throw "expand.exe failed for '$CabPath' (exit $($p.ExitCode))."
+    }
+}
+
+function Import-SourceIntoExtracted {
+    param(
+        [string]$SourcePath,
+        [string]$ModelFolder,
+        [string]$ExtractedFolder,
+        [string]$ResolvedFormat,
+        [switch]$Force
+    )
+
+    $resolvedSource = (Resolve-Path -LiteralPath $SourcePath).Path
+
+    if (Test-Path -LiteralPath $resolvedSource -PathType Container) {
+        Write-ImportLog "Copying extracted driver tree → Extracted\"
+        Copy-DriverTree -Source $resolvedSource -Destination $ExtractedFolder -Force:$Force
+        return
+    }
+
+    if (-not (Test-Path -LiteralPath $resolvedSource -PathType Leaf)) {
+        throw "SourcePath not found: $SourcePath"
+    }
+
+    $leaf = Split-Path -Leaf $resolvedSource
+    $archiveDest = Join-Path $ModelFolder $leaf
+    Write-ImportLog "Keeping original pack: $archiveDest"
+    if ((Test-Path -LiteralPath $archiveDest) -and -not $Force) {
+        throw "Archive already exists: $archiveDest (use -Force to replace)."
+    }
+    Copy-Item -LiteralPath $resolvedSource -Destination $archiveDest -Force
+
+    switch ($ResolvedFormat) {
+        "cab" {
+            Write-ImportLog "Expanding CAB → Extracted\"
+            Expand-CabToFolder -CabPath $resolvedSource -Destination $ExtractedFolder -Force:$Force
+        }
+        "exe" {
+            Ensure-EmptyDirectory -Path $ExtractedFolder -Force:$Force
+            Write-ImportLog "EXE stored at model folder. Pass an already-extracted folder as -SourcePath to populate Extracted\, or extract the EXE offline first." -ForegroundColor Yellow
+        }
+        default {
+            throw "Unsupported format '$ResolvedFormat'."
+        }
+    }
+}
+
+function Get-OrCreateDriversCatalog {
+    param([string]$CatalogPath)
+
+    if (Test-Path -LiteralPath $CatalogPath -PathType Leaf) {
+        $raw = Get-Content -LiteralPath $CatalogPath -Raw -ErrorAction Stop
+        if ([string]::IsNullOrWhiteSpace($raw) -or $raw.Trim() -eq "{}") {
+            return [ordered]@{
+                '$schema'      = "./schemas/drivers-catalog.schema.json"
+                schemaVersion  = 1
+                manufacturers  = @()
+            }
+        }
+        $obj = $raw | ConvertFrom-Json
+        if (-not $obj.PSObject.Properties['schemaVersion']) {
+            $obj | Add-Member -NotePropertyName schemaVersion -NotePropertyValue 1
+        }
+        if (-not $obj.PSObject.Properties['manufacturers'] -or $null -eq $obj.manufacturers) {
+            $obj | Add-Member -NotePropertyName manufacturers -NotePropertyValue @() -Force
+        }
+        if (-not $obj.PSObject.Properties['$schema']) {
+            $obj | Add-Member -NotePropertyName '$schema' -NotePropertyValue "./schemas/drivers-catalog.schema.json"
+        }
+        return $obj
+    }
+
+    $catalogDir = Split-Path -Parent $CatalogPath
+    if (-not (Test-Path -LiteralPath $catalogDir)) {
+        $null = New-Item -Path $catalogDir -ItemType Directory -Force
+    }
+
+    return [ordered]@{
+        '$schema'     = "./schemas/drivers-catalog.schema.json"
+        schemaVersion = 1
+        manufacturers = @()
+    }
+}
+
+function ConvertTo-OrderedCatalog {
+    param($Catalog)
+
+    $manufacturers = @()
+    foreach ($mfr in @($Catalog.manufacturers)) {
+        $models = @()
+        foreach ($model in @($mfr.models)) {
+            $sku = @($model.systemSku | ForEach-Object { [string]$_ })
+            $modelOrdered = [ordered]@{
+                modelId      = [string]$model.modelId
+                name         = [string]$model.name
+                systemSku    = $sku
+                version      = [string]$model.version
+                releaseDate  = [string]$model.releaseDate
+                importedDate = [string]$model.importedDate
+                format       = [string]$model.format
+                enabled      = [bool]$model.enabled
+                path         = [string]$model.path
+            }
+            if ($model.PSObject.Properties['downloadLink'] -and -not [string]::IsNullOrWhiteSpace([string]$model.downloadLink)) {
+                $modelOrdered['downloadLink'] = [string]$model.downloadLink
+            }
+            $models += [pscustomobject]$modelOrdered
+        }
+
+        $manufacturers += [pscustomobject][ordered]@{
+            manufacturerId = [string]$mfr.manufacturerId
+            name           = [string]$mfr.name
+            enabled        = [bool]$mfr.enabled
+            models         = $models
+        }
+    }
+
+    return [pscustomobject][ordered]@{
+        '$schema'     = if ($Catalog.PSObject.Properties['$schema']) { [string]$Catalog.'$schema' } else { "./schemas/drivers-catalog.schema.json" }
+        schemaVersion = 1
+        manufacturers = $manufacturers
+    }
+}
+
+function Update-DriversCatalogEntry {
+    param(
+        $Catalog,
+        [string]$ManufacturerId,
+        [string]$ManufacturerName,
+        [bool]$ManufacturerEnabled,
+        [hashtable]$ModelEntry,
+        [switch]$Force
+    )
+
+    $manufacturers = [System.Collections.Generic.List[object]]::new()
+    foreach ($existing in @($Catalog.manufacturers)) {
+        $manufacturers.Add($existing)
+    }
+
+    $mfrIndex = -1
+    for ($i = 0; $i -lt $manufacturers.Count; $i++) {
+        if ([string]::Equals([string]$manufacturers[$i].manufacturerId, $ManufacturerId, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $mfrIndex = $i
+            break
+        }
+    }
+
+    if ($mfrIndex -lt 0) {
+        $newMfr = [pscustomobject][ordered]@{
+            manufacturerId = $ManufacturerId
+            name           = $ManufacturerName
+            enabled        = $ManufacturerEnabled
+            models         = @([pscustomobject]$ModelEntry)
+        }
+        $manufacturers.Add($newMfr)
+    }
+    else {
+        $mfr = $manufacturers[$mfrIndex]
+        $mfr.name = $ManufacturerName
+        $mfr.enabled = $ManufacturerEnabled
+
+        $models = [System.Collections.Generic.List[object]]::new()
+        foreach ($existingModel in @($mfr.models)) {
+            $models.Add($existingModel)
+        }
+
+        $modelIndex = -1
+        for ($i = 0; $i -lt $models.Count; $i++) {
+            if ([string]::Equals([string]$models[$i].modelId, [string]$ModelEntry.modelId, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $modelIndex = $i
+                break
+            }
+        }
+
+        if ($modelIndex -ge 0 -and -not $Force) {
+            throw "ModelId '$($ModelEntry.modelId)' already exists under '$ManufacturerId' (use -Force to replace)."
+        }
+
+        $modelObject = [pscustomobject]$ModelEntry
+        if ($modelIndex -ge 0) {
+            $models[$modelIndex] = $modelObject
+        }
+        else {
+            $models.Add($modelObject)
+        }
+
+        $mfr.models = @($models.ToArray())
+        $manufacturers[$mfrIndex] = $mfr
+    }
+
+    $Catalog.manufacturers = @($manufacturers.ToArray())
+    return $Catalog
+}
+
+# ------------------------------------------------------------------------------
+# Validate inputs
+# ------------------------------------------------------------------------------
+
+$DeploymentRoot = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($DeploymentRoot)
+if (-not (Test-Path -LiteralPath $DeploymentRoot -PathType Container)) {
+    throw "DeploymentRoot not found: $DeploymentRoot"
+}
+
+$ManufacturerId = $ManufacturerId.Trim()
+$ManufacturerName = $ManufacturerName.Trim()
+$ModelId = $ModelId.Trim()
+$ModelName = $ModelName.Trim()
+$Version = $Version.Trim()
+$skuList = Get-NormalizedSkuList -Values $SystemSku
+
+if ([string]::IsNullOrWhiteSpace($FolderName)) {
+    $FolderName = $ModelName
+}
+$FolderName = $FolderName.Trim()
+
+if ([string]::IsNullOrWhiteSpace($ReleaseDate)) {
+    $ReleaseDate = (Get-Date).ToString("yyyy-MM-dd")
+}
+if (-not (Test-IsoDate $ReleaseDate)) {
+    throw "ReleaseDate must be YYYY-MM-DD. Got: $ReleaseDate"
+}
+$importedDate = (Get-Date).ToString("yyyy-MM-dd")
+
+if (-not (Test-Path -LiteralPath $SourcePath)) {
+    throw "SourcePath not found: $SourcePath"
+}
+
+if ([string]::IsNullOrWhiteSpace($Format)) {
+    if (Test-Path -LiteralPath $SourcePath -PathType Leaf) {
+        $ext = [System.IO.Path]::GetExtension($SourcePath).TrimStart('.').ToLowerInvariant()
+        if ($ext -in @("exe", "cab")) {
+            $Format = $ext
+        }
+        else {
+            throw "Cannot detect Format from '$SourcePath'. Pass -Format exe or -Format cab."
+        }
+    }
+    else {
+        # Extracted folder import — format still required for catalog metadata.
+        throw "When -SourcePath is a folder, pass -Format exe or -Format cab for catalog metadata."
+    }
+}
+
+if (-not [string]::IsNullOrWhiteSpace($WinPESourcePath) -and -not (Test-Path -LiteralPath $WinPESourcePath -PathType Container)) {
+    throw "WinPESourcePath must be an existing folder: $WinPESourcePath"
+}
+
+$driversRoot = Join-Path $DeploymentRoot "Content\Drivers"
+$catalogPath = Join-Path $driversRoot "catalog.json"
+$modelFolder = Join-Path $driversRoot (Join-Path $ManufacturerName $FolderName)
+$extractedFolder = Join-Path $modelFolder "Extracted"
+$winPeFolder = Join-Path $modelFolder "WinPE"
+
+Write-ImportLog "Deployment root : $DeploymentRoot"
+Write-ImportLog "Model folder    : $modelFolder"
+Write-ImportLog "Manufacturer    : $ManufacturerName ($ManufacturerId)"
+Write-ImportLog "Model           : $ModelName [$ModelId]"
+Write-ImportLog "SystemSku       : $($skuList -join ', ')"
+Write-ImportLog "Format/Version  : $Format / $Version"
+
+if (-not $PSCmdlet.ShouldProcess($modelFolder, "Import OEM drivers and update catalog.json")) {
+    return
+}
+
+if (-not (Test-Path -LiteralPath $modelFolder)) {
+    $null = New-Item -Path $modelFolder -ItemType Directory -Force
+}
+
+Import-SourceIntoExtracted -SourcePath $SourcePath -ModelFolder $modelFolder -ExtractedFolder $extractedFolder -ResolvedFormat $Format -Force:$Force
+
+if (-not [string]::IsNullOrWhiteSpace($WinPESourcePath)) {
+    Write-ImportLog "Copying WinPE drivers → WinPE\"
+    Copy-DriverTree -Source $WinPESourcePath -Destination $winPeFolder -Force:$Force
+}
+else {
+    if (-not (Test-Path -LiteralPath $winPeFolder)) {
+        $null = New-Item -Path $winPeFolder -ItemType Directory -Force
+        Write-ImportLog "Created empty WinPE\ (add storage/NIC drivers later)." -ForegroundColor DarkYellow
+    }
+}
+
+$relativePath = New-RelativeSharePath -Root $DeploymentRoot -FullPath $modelFolder
+
+$modelEntry = [ordered]@{
+    modelId      = $ModelId
+    name         = $ModelName
+    systemSku    = @($skuList)
+    version      = $Version
+    releaseDate  = $ReleaseDate
+    importedDate = $importedDate
+    format       = $Format
+    enabled      = [bool]$Enabled
+    path         = $relativePath
+}
+if (-not [string]::IsNullOrWhiteSpace($DownloadLink)) {
+    $modelEntry["downloadLink"] = $DownloadLink.Trim()
+}
+
+$catalog = Get-OrCreateDriversCatalog -CatalogPath $catalogPath
+$catalog = Update-DriversCatalogEntry `
+    -Catalog $catalog `
+    -ManufacturerId $ManufacturerId `
+    -ManufacturerName $ManufacturerName `
+    -ManufacturerEnabled $true `
+    -ModelEntry $modelEntry `
+    -Force:$Force
+
+$ordered = ConvertTo-OrderedCatalog -Catalog $catalog
+$json = $ordered | ConvertTo-Json -Depth 8
+Set-Content -LiteralPath $catalogPath -Value $json -Encoding UTF8 -Force
+
+Write-ImportLog "Catalog updated : $catalogPath" -ForegroundColor Green
+Write-ImportLog "Extracted       : $extractedFolder" -ForegroundColor Green
+Write-ImportLog "WinPE           : $winPeFolder" -ForegroundColor Green
+
+return [pscustomobject]@{
+    CatalogPath      = $catalogPath
+    ModelFolder      = $modelFolder
+    ExtractedPath    = $extractedFolder
+    WinPEPath        = $winPeFolder
+    RelativePath     = $relativePath
+    ManufacturerId   = $ManufacturerId
+    ManufacturerName = $ManufacturerName
+    ModelId          = $ModelId
+    ModelName        = $ModelName
+    SystemSku        = $skuList
+    Version          = $Version
+    Format           = $Format
+}

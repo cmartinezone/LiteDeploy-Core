@@ -15,6 +15,7 @@ Production script **file names** stay the same (`LiteDeploy.PreCheck.ps1`, etc.)
 | --- | --- |
 | [Config](Manager/Config/) | Generates `BootConfig.json` |
 | [DeploymentShareACL](Manager/DeploymentShareACL/) | Share folders, SMB, and NTFS log isolation |
+| [ImportOEMDrivers](Manager/ImportOEMDrivers/) | Imports OEM driver packs into `Content/Drivers` + catalog |
 | [ImportOSMedia](Manager/ImportOSMedia/) | Planned OS importer → `Content/OperatingSystems/catalog.json` |
 
 Adjacent (separate repos / share tree): [WinPEBuilder](https://github.com/cmartinezone/WinPEBuilder), [DeploymentShare](../DeploymentShare/), DeployVault admin tooling.

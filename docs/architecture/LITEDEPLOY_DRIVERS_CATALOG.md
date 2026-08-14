@@ -87,4 +87,4 @@ Each model carries its own `WinPE` pack for that manufacturer’s hardware (not 
 | BootConfig auto-detect / manual pick | `ComputerSetup` / `Drivers` in BootConfig |
 | Online download during Media | `Drivers.AutoOnlineDownloadOnMedia` |
 | INF-level inventory | Inside `Extracted/` and `WinPE/` only |
-| Import / Driver Manager | Future Manager tool (learn vendor catalogs from FFU; LiteDeploy-owned) |
+| Import / Driver Manager | [`ImportOEMDrivers`](../../components/Manager/ImportOEMDrivers/) (local import now; online OEM sync later) |

@@ -24,6 +24,7 @@ DeploymentShare/ (share skeleton)  Progress | Credentials / WinPECT
 | --- | --- | --- |
 | [Config](components/Manager/Config) | Generates `BootConfig.json` for BootWim, DeploymentShare, and Media | Exists |
 | [DeploymentShareACL](components/Manager/DeploymentShareACL) | Share folders, SMB, and NTFS log isolation | Exists |
+| [ImportOEMDrivers](components/Manager/ImportOEMDrivers) | Imports OEM packs into `Content/Drivers` + catalog | Exists |
 | [ImportOSMedia](components/Manager/ImportOSMedia) | Publishes OS catalog for SelectWorkflow / engine | Placeholder |
 | [WinPEBuilder](https://github.com/cmartinezone/WinPEBuilder) | Builds boot ISO or `Boot.wim` for WDS/PXE | Separate repo |
 | [DeploymentShare](DeploymentShare) | Initial deployment-share folder layout | Exists |
