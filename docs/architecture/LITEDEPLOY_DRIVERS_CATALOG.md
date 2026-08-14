@@ -87,4 +87,4 @@ Each model carries its own `WinPE` pack for that manufacturer’s hardware (not 
 | BootConfig auto-detect / manual pick | `ComputerSetup` / `Drivers` in BootConfig |
 | Online download during Media | `Drivers.AutoOnlineDownloadOnMedia` |
 | INF-level inventory | Inside `Extracted/` and `WinPE/` only |
-| Import / Driver Manager | [`ImportOEMDrivers`](../../components/Manager/ImportOEMDrivers/) — downloads/extracts under `Content\Temp`, publishes to `Content\Drivers` |
+| Import / Driver Manager | [`ImportOEMDrivers`](../../components/Manager/ImportOEMDrivers/) — downloads/extracts under `Content\Temp`, publishes to `Content\Drivers`; also `-ModelsCsvPath` to register manufacturer-supported models (`Model`,`SystemSku` / `SkuId`) without a pack |
