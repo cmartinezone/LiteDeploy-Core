@@ -440,7 +440,6 @@ function New-LiteDeployUiBackdrop {
         return [PSCustomObject]@{
             Kind   = "WinForms"
             Handle = $form
-            Close  = { param($self) try { $self.Handle.Close() } catch {} }.GetNewClosure()
         }
     }
 
@@ -453,7 +452,6 @@ function New-LiteDeployUiBackdrop {
     return [PSCustomObject]@{
         Kind   = "Wpf"
         Handle = $window
-        Close  = { param($self) try { $self.Handle.Close() } catch {} }.GetNewClosure()
     }
 }
 
