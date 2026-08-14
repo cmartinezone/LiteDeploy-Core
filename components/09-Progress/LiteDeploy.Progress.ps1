@@ -79,6 +79,15 @@ if (-not [System.IO.Path]::IsPathRooted($targetStateFile)) {
 $script:StatePath = [System.IO.Path]::GetFullPath($targetStateFile)
 
 # Ensure Single-Threaded Apartment (STA) Mode for WPF Compatibility in PowerShell 5.1
+$uiHostPath = Join-Path $scriptDir "LiteDeploy.UiHost.ps1"
+if (-not (Test-Path -LiteralPath $uiHostPath)) {
+    $uiHostPath = Join-Path $scriptDir "..\04-UiHost\LiteDeploy.UiHost.ps1"
+}
+if (-not (Test-Path -LiteralPath $uiHostPath)) {
+    throw "LiteDeploy.UiHost.ps1 was not found beside Progress or under components/04-UiHost."
+}
+. $uiHostPath
+
 if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Threading.ApartmentState]::STA) {
     if (-not [string]::IsNullOrWhiteSpace($PSCommandPath)) {
         $boundArgs = @()
@@ -99,8 +108,10 @@ if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Thr
     }
 }
 
+$null = Initialize-LiteDeployUiHost -RequireWindowsForms
+
 # ------------------------------------------------------------------------------
-# 1. HIGH-DPI AWARENESS & WPF ASSEMBLY INITIALIZATION
+# 1. HIGH-DPI AWARENESS (Progress-specific)
 # ------------------------------------------------------------------------------
 if (-not ([System.Management.Automation.PSTypeName]'DpiHelper').Type) {
     try {
@@ -120,73 +131,19 @@ try {
     [DpiHelper]::SetProcessDpiAwarenessContext([IntPtr](-4)) | Out-Null
 } catch {}
 
-Add-Type -AssemblyName PresentationFramework
-Add-Type -AssemblyName PresentationCore
-Add-Type -AssemblyName WindowsBase
-Add-Type -AssemblyName System.Xaml
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
-[System.Windows.Forms.Application]::EnableVisualStyles()
-
 # ------------------------------------------------------------------------------
-# 2. COLOR PALETTE & WPF BRUSH CONVERTERS
+# 2. COLOR PALETTE (shared UiHost)
 # ------------------------------------------------------------------------------
 function ConvertTo-WinColor([string]$Hex) {
-    return [System.Drawing.ColorTranslator]::FromHtml($Hex)
+    return ConvertTo-LiteDeployUiWinColor -Hex $Hex
 }
 
 function ConvertTo-WpfBrush([string]$Hex) {
-    return [System.Windows.Media.BrushConverter]::new().ConvertFromString($Hex)
-}
-
-$script:ColorMap = @{
-    Dark = @{
-        IsDark      = $true
-        BgMain      = "#151515"
-        BgSidebar   = "#181818"
-        BgFooter    = "#1B1B1B"
-        BgLogBox    = "#242424"
-        Border      = "#292929"
-        TextPrimary = "#FFFFFF"
-        TextSec     = "#BFBFBF"
-        TextMuted   = "#808080"
-        LogText     = "#60A5FA"
-        TrackBg     = "#2E2E2E"
-    }
-    Light = @{
-        IsDark      = $false
-        BgMain      = "#FFFFFF"
-        BgSidebar   = "#FFFFFF"
-        BgFooter    = "#F7F9FB"
-        BgLogBox    = "#F3F6F9"
-        Border      = "#D9E0E7"
-        TextPrimary = "#111827"
-        TextSec     = "#4B5563"
-        TextMuted   = "#687684"
-        LogText     = "#0078D4"
-        TrackBg     = "#E6EBF0"
-    }
+    return ConvertTo-LiteDeployUiBrush -Hex $Hex
 }
 
 function Get-NativeThemePalette([string]$ThemeName) {
-    $themeRecord = $script:ColorMap["Light"]
-    if ($script:ColorMap.ContainsKey($ThemeName)) {
-        $themeRecord = $script:ColorMap[$ThemeName]
-    }
-
-    return @{
-        IsDark          = $themeRecord.IsDark
-        WpfBgMain       = ConvertTo-WpfBrush $themeRecord.BgMain
-        WpfBgSidebar    = ConvertTo-WpfBrush $themeRecord.BgSidebar
-        WpfBgFooter     = ConvertTo-WpfBrush $themeRecord.BgFooter
-        WpfBgLogBox     = ConvertTo-WpfBrush $themeRecord.BgLogBox
-        WpfBorder       = ConvertTo-WpfBrush $themeRecord.Border
-        WpfTextPrimary  = ConvertTo-WpfBrush $themeRecord.TextPrimary
-        WpfTextSec      = ConvertTo-WpfBrush $themeRecord.TextSec
-        WpfTextMuted    = ConvertTo-WpfBrush $themeRecord.TextMuted
-        WpfLogText      = ConvertTo-WpfBrush $themeRecord.LogText
-        WpfTrackBg      = ConvertTo-WpfBrush $themeRecord.TrackBg
-    }
+    return Get-LiteDeployUiThemePalette -Theme $ThemeName -IncludeBrushes
 }
 
 $script:StatusHexMap = @{
@@ -211,18 +168,10 @@ $Palette = Get-NativeThemePalette -ThemeName $Theme
 # 3. BACKDROP OVERLAY WINDOW
 # ------------------------------------------------------------------------------
 $script:BackdropForm = $null
+$script:UiBackdrop = $null
 if ($ShowBackdrop) {
-    $script:BackdropForm = New-Object System.Windows.Forms.Form
-    $script:BackdropForm.Text = "LiteDeploy Backdrop"
-    $script:BackdropForm.WindowState = [System.Windows.Forms.FormWindowState]::Maximized
-    $script:BackdropForm.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
-    $bgColor = ConvertTo-WinColor "#002D50"
-    if ($Palette.IsDark) {
-        $bgColor = ConvertTo-WinColor "#0A0A0A"
-    }
-    $script:BackdropForm.BackColor = $bgColor
-    $script:BackdropForm.ShowInTaskbar = $false
-    $script:BackdropForm.Show()
+    $script:UiBackdrop = New-LiteDeployUiBackdrop -Palette $Palette -Kind WinForms
+    $script:BackdropForm = $script:UiBackdrop.Handle
 }
 
 # Global Control References & Active Layout Target
@@ -235,30 +184,7 @@ function Get-WpfControlByName {
         [System.Windows.DependencyObject]$Parent,
         [string]$Name
     )
-    if ($null -eq $Parent) { return $null }
-
-    if ($Parent -is [System.Windows.FrameworkElement] -and $Parent.Name -eq $Name) {
-        return $Parent
-    }
-
-    if ($Parent -is [System.Windows.FrameworkElement]) {
-        try {
-            $found = $Parent.FindName($Name)
-            if ($null -ne $found) { return $found }
-        } catch {}
-    }
-
-    try {
-        $children = [System.Windows.LogicalTreeHelper]::GetChildren($Parent)
-        foreach ($child in $children) {
-            if ($child -is [System.Windows.DependencyObject]) {
-                $foundChild = Get-WpfControlByName -Parent $child -Name $Name
-                if ($null -ne $foundChild) { return $foundChild }
-            }
-        }
-    } catch {}
-
-    return $null
+    return (Find-LiteDeployUiControl -Parent $Parent -Name $Name)
 }
 
 # Generic WPF Window Factory
@@ -539,18 +465,14 @@ if ($TopMost -eq "On") {
 
 if ($ShowBackdrop) {
     $script:WpfWindow.add_Closed({
-        if ($script:BackdropForm -and -not $script:BackdropForm.IsDisposed) {
-            $script:BackdropForm.Close()
-        }
+        Close-LiteDeployUiBackdrop -Backdrop $script:UiBackdrop
     })
 }
 
 $script:IsClosing = $false
 $script:WpfWindow.add_Closing({
     $script:IsClosing = $true
-    if ($script:BackdropForm -and -not $script:BackdropForm.IsDisposed) {
-        $script:BackdropForm.Close()
-    }
+    Close-LiteDeployUiBackdrop -Backdrop $script:UiBackdrop
 })
 
 $script:WpfWindow.Show()

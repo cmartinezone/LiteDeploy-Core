@@ -9,6 +9,7 @@ Related documents:
 - [LITEDEPLOY_DEPLOYMENT_PLAN.md](LITEDEPLOY_DEPLOYMENT_PLAN.md)
 - [LITEDEPLOY_DEPLOYMENT_DIAGRAM.md](LITEDEPLOY_DEPLOYMENT_DIAGRAM.md)
 - [LITEDEPLOY_CATALOG_WORKFLOW_SPEC.md](LITEDEPLOY_CATALOG_WORKFLOW_SPEC.md)
+- [LITEDEPLOY_UI_HOST.md](LITEDEPLOY_UI_HOST.md) — shared WPF chrome for PreCheck / SelectWorkflow / Progress
 - [WinPEBuilder](https://github.com/cmartinezone/WinPEBuilder) — ISO and `Boot.wim` for WDS/PXE
 - [DeployVault](https://github.com/cmartinezone/DeployVault) — credential vault
 - [WinPECT](https://github.com/cmartinezone/WinPECT) — WinPE credential transfer

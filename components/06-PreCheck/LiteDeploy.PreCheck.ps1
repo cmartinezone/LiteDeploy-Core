@@ -22,20 +22,25 @@ param(
 )
 
 # ------------------------------------------------------------------------------
-# 1. STA MODE & WPF ASSEMBLY LOAD
+# 1. STA MODE, SHARED UI HOST & WPF ASSEMBLY LOAD
 # ------------------------------------------------------------------------------
-if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') {
-    if ($BootObject) {
-        throw "LiteDeploy.PreCheck.ps1 must be invoked from the BootInitializer STA process when BootObject is supplied. Relaunching would discard the in-memory credential."
-    }
-    $powershellExe = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
-    if (-not (Test-Path $powershellExe)) { $powershellExe = "powershell.exe" }
-    & $powershellExe -STA -ExecutionPolicy Bypass -File "$PSCommandPath" @args
-    return
+$uiHostPath = Join-Path $PSScriptRoot "LiteDeploy.UiHost.ps1"
+if (-not (Test-Path -LiteralPath $uiHostPath)) {
+    $uiHostPath = Join-Path $PSScriptRoot "..\04-UiHost\LiteDeploy.UiHost.ps1"
 }
+if (-not (Test-Path -LiteralPath $uiHostPath)) {
+    throw "LiteDeploy.UiHost.ps1 was not found beside PreCheck or under components/04-UiHost."
+}
+. $uiHostPath
 
-try { [System.Windows.Media.RenderOptions]::ProcessRenderMode = [System.Windows.Interop.RenderMode]::SoftwareOnly } catch {}
-Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Windows.Forms
+$uiInit = Initialize-LiteDeployUiHost `
+    -RequireWindowsForms `
+    -EnforceSta `
+    -ScriptPath $PSCommandPath `
+    -RelaunchArgumentList $args `
+    -AbortStaRelaunchWhenCredentialBound:([bool]$BootObject)
+if ($uiInit.Relaunched) { return }
+
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = "Stop"
 
@@ -47,38 +52,40 @@ elseif (Test-Path Variable:global:LiteDeployBootObject) {
 }
 
 # ------------------------------------------------------------------------------
-# 2. ADAPTIVE WINDOW SIZE & THEME PALETTE
+# 2. ADAPTIVE WINDOW SIZE & THEME PALETTE (shared UiHost)
 # ------------------------------------------------------------------------------
-$screenWidth = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Width
-$screenHeight = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Height
-$targetHeight = [Math]::Min(840, [Math]::Max(500, [int]($screenHeight * 0.70)))
-$targetWidth = [int]($targetHeight * (800 / 600))
+$windowSize = Get-LiteDeployUiWindowSize
+$targetWidth = [int]$windowSize.Width
+$targetHeight = [int]$windowSize.Height
 
-$isDark = ($Theme -eq "Dark")
-$bgColor = if ($isDark) { "#121212" } else { "#FFFFFF" }
-$fgColor = if ($isDark) { "#F3F4F6" } else { "#111827" }
-$secFgColor = if ($isDark) { "#9CA3AF" } else { "#4B5563" }
-$mutedFgColor = if ($isDark) { "#9CA3AF" } else { "#687684" }
-$surfaceBg = if ($isDark) { "#1E1E1E" } else { "#F7F9FB" }
-$footerBg = if ($isDark) { "#181818" } else { "#F7F9FB" }
-$headerBg = if ($isDark) { "#2A2A2A" } else { "#F3F4F6" }
-$headerFg = if ($isDark) { "#E5E7EB" } else { "#374151" }
-$borderColor = if ($isDark) { "#333333" } else { "#D9E0E7" }
-$buttonBg = if ($isDark) { "#2A2A2A" } else { "#FFFFFF" }
-$buttonFg = if ($isDark) { "#F3F4F6" } else { "#1F2937" }
-$buttonHoverBg = if ($isDark) { "#383838" } else { "#F3F4F6" }
-$buttonPressedBg = if ($isDark) { "#404040" } else { "#E5E7EB" }
-$trackBg = if ($isDark) { "#2D2D2D" } else { "#E6EBF0" }
-$headerColor = if ($isDark) { "#3B82F6" } else { "#005A9E" }
-$primaryHoverBg = if ($isDark) { "#2563EB" } else { "#0078D4" }
-$primaryPressedBg = if ($isDark) { "#1D4ED8" } else { "#004E8C" }
-$disabledBg = if ($isDark) { "#262626" } else { "#F3F4F6" }
-$disabledBorder = if ($isDark) { "#333333" } else { "#E5E7EB" }
-$disabledFg = if ($isDark) { "#6B7280" } else { "#9CA3AF" }
+$palette = Get-LiteDeployUiThemePalette -Theme $Theme
+$isDark = [bool]$palette.IsDark
+$bgColor = $palette.BgMain
+$fgColor = $palette.TextPrimary
+$secFgColor = $palette.TextSecondary
+$mutedFgColor = $palette.TextMuted
+$surfaceBg = $palette.BgSurface
+$footerBg = $palette.BgFooter
+$headerBg = $palette.BgHeader
+$headerFg = $palette.TextHeader
+$borderColor = $palette.Border
+$buttonBg = $palette.BgButton
+$buttonFg = $palette.TextButton
+$buttonHoverBg = $palette.BgButtonHover
+$buttonPressedBg = $palette.BgButtonPressed
+$trackBg = $palette.BgTrack
+$headerColor = $palette.BrandPrimary
+$primaryHoverBg = $palette.BrandHover
+$primaryPressedBg = $palette.BrandPressed
+$disabledBg = $palette.BgDisabled
+$disabledBorder = $palette.BorderDisabled
+$disabledFg = $palette.TextDisabled
 
 # ------------------------------------------------------------------------------
 # 3. WPF XAML INTERFACE
 # ------------------------------------------------------------------------------
+$buttonStyles = Get-LiteDeployUiButtonStyleXaml -Palette $palette -Density Compact
+
 [xml]$xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -105,7 +112,7 @@ $disabledFg = if ($isDark) { "#6B7280" } else { "#9CA3AF" }
 
         <Style x:Key="ModernProgressBarStyle" TargetType="ProgressBar">
             <Setter Property="Height" Value="10"/><Setter Property="Background" Value="$trackBg"/>
-            <Setter Property="Foreground" Value="#0078D4"/><Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="$($palette.BrandAccent)"/><Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ProgressBar">
@@ -118,46 +125,8 @@ $disabledFg = if ($isDark) { "#6B7280" } else { "#9CA3AF" }
             </Setter>
         </Style>
 
-        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="$headerColor"/><Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="$headerColor"/><Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="FontSize" Value="12"/><Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Padding" Value="24,7"/><Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="5">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="border" Property="Background" Value="$primaryHoverBg"/><Setter TargetName="border" Property="BorderBrush" Value="$primaryHoverBg"/></Trigger>
-                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="border" Property="Background" Value="$primaryPressedBg"/></Trigger>
-                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="border" Property="Background" Value="$disabledBg"/><Setter TargetName="border" Property="BorderBrush" Value="$disabledBorder"/><Setter Property="Foreground" Value="$disabledFg"/><Setter Property="Cursor" Value="No"/></Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="SecondaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="$buttonBg"/><Setter Property="Foreground" Value="$buttonFg"/>
-            <Setter Property="BorderBrush" Value="$borderColor"/><Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="FontSize" Value="11.5"/><Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Padding" Value="16,6"/><Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="5">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="border" Property="Background" Value="$buttonHoverBg"/><Setter TargetName="border" Property="BorderBrush" Value="$headerColor"/></Trigger>
-                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="border" Property="Background" Value="$buttonPressedBg"/></Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+$($buttonStyles.PrimaryButtonStyleXaml)
+$($buttonStyles.SecondaryButtonStyleXaml)
     </Window.Resources>
 
     <Viewbox Stretch="Fill">
@@ -169,7 +138,7 @@ $disabledFg = if ($isDark) { "#6B7280" } else { "#9CA3AF" }
                     <RowDefinition Height="60"/>
                 </Grid.RowDefinitions>
 
-                <Border Grid.Row="0" Background="#005A9E" Padding="25,10">
+                <Border Grid.Row="0" Background="$($palette.BrandPrimary)" Padding="25,10">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="50"/>
@@ -248,12 +217,9 @@ if ($null -eq $window) { return $false }
 
 if ($TopMost -eq "On") { $window.Topmost = $true }
 
-$backdropWindow = $null
+$backdrop = $null
 if ($ShowBackdrop) {
-    $backdropWindow = New-Object System.Windows.Window
-    $backdropWindow.WindowStyle = "None"; $backdropWindow.WindowState = "Maximized"
-    $backdropWindow.Background = [System.Windows.Media.Brushes]::Black
-    $backdropWindow.ShowInTaskbar = $false; $backdropWindow.Show()
+    $backdrop = New-LiteDeployUiBackdrop -Palette $palette -Kind Wpf
 }
 
 $txtBrand = $window.FindName("TxtBrand")
@@ -281,7 +247,7 @@ function Do-Events {
 }
 
 function Brush([string]$Color) {
-    [System.Windows.Media.BrushConverter]::new().ConvertFromString($Color)
+    ConvertTo-LiteDeployUiBrush -Hex $Color
 }
 
 function Property($Object, [string]$Name) {
@@ -293,16 +259,16 @@ function Property($Object, [string]$Name) {
 function Add-Result([string]$Message, [string]$Status = "INFO") {
     $parts = $Message.Split(":", 2)
     $fg = switch ($Status) {
-        "OK" { if ($isDark) { "#4ADE80" } else { "#107C10" } }
-        "FAIL" { if ($isDark) { "#F87171" } else { "#D13438" } }
-        "WARN" { if ($isDark) { "#FBBF24" } else { "#D97706" } }
-        default { if ($isDark) { "#60A5FA" } else { "#0078D4" } }
+        "OK" { $palette.StatusOk }
+        "FAIL" { $palette.StatusFail }
+        "WARN" { $palette.StatusWarn }
+        default { $palette.StatusInfo }
     }
     $bg = switch ($Status) {
-        "OK" { if ($isDark) { "#163820" } else { "#DCFCE7" } }
-        "FAIL" { if ($isDark) { "#3E1719" } else { "#FEE2E2" } }
-        "WARN" { if ($isDark) { "#3D3010" } else { "#FEF3C7" } }
-        default { if ($isDark) { "#1E293B" } else { "#DBEAFE" } }
+        "OK" { $palette.StatusOkBg }
+        "FAIL" { $palette.StatusFailBg }
+        "WARN" { $palette.StatusWarnBg }
+        default { $palette.StatusInfoBg }
     }
     $script:Summary.Add([PSCustomObject]@{ Status = $Status; StatusFg = $fg; StatusBg = $bg; Check = $parts[0].Trim(); Details = if ($parts.Count -gt 1) { $parts[1].Trim() } else { $Message } })
     $gridPreCheckResults.ItemsSource = $script:Summary.ToArray()
@@ -715,7 +681,7 @@ $window.Add_KeyDown({ if ($_.Key -eq [System.Windows.Input.Key]::Escape) { $wind
 $window.Add_ContentRendered({ Invoke-PreCheck })
 
 $null = $window.ShowDialog()
-if ($backdropWindow) { $backdropWindow.Close() }
+Close-LiteDeployUiBackdrop -Backdrop $backdrop
 
 $preCheckPassed = $false
 if (Test-Path Variable:global:PreCheckPassed) {

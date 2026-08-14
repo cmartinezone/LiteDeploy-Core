@@ -12,6 +12,7 @@ Folders are numbered in the order LiteDeploy works. Numbers are for this develop
 | 02 | `02-DeploymentShareACL` | An administrator creates the share, SMB permissions, and log ACLs. |
 | 03 | `03-LogWriter` | Loaded by later components as soon as WinPE logging starts. |
 | 04 | `04-HostShell` | Loaded by BootInitializer to control the WinPE console. |
+| — | [`04-UiHost`](04-UiHost) | Shared WPF theme/host helpers for PreCheck, SelectWorkflow, Progress. |
 
 ## On the device
 

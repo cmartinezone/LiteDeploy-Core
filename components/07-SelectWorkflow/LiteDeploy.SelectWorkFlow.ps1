@@ -1,30 +1,33 @@
 [CmdletBinding()]
 param(
-    [psobject]$BootObject = $null
+    [psobject]$BootObject = $null,
+
+    [ValidateSet("Light", "Dark")]
+    [string]$Theme = "Light"
 )
 
-# Ensured Single-Threaded Apartment (STA) mode for WPF
-if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') {
-    if ($BootObject) {
-        throw "LiteDeploy.SelectWorkFlow.ps1 must be invoked from the BootInitializer STA process when BootObject is supplied. Relaunching would discard the in-memory credential."
-    }
-    powershell.exe -STA -ExecutionPolicy Bypass -File "$PSCommandPath"
-    return
+# ------------------------------------------------------------------------------
+# Shared UiHost bootstrap (theme, assemblies, messages)
+# ------------------------------------------------------------------------------
+$uiHostPath = Join-Path $PSScriptRoot "LiteDeploy.UiHost.ps1"
+if (-not (Test-Path -LiteralPath $uiHostPath)) {
+    $uiHostPath = Join-Path $PSScriptRoot "..\04-UiHost\LiteDeploy.UiHost.ps1"
 }
-
-Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
-
-# Force software rendering after WPF is loaded for WinPE display-driver compatibility.
-[System.Windows.Media.RenderOptions]::ProcessRenderMode = [System.Windows.Interop.RenderMode]::SoftwareOnly
-
-# Prefer Windows Forms for validation alerts, with a WPF fallback for minimal WinPE images.
-$script:WindowsFormsAlertsAvailable = $false
-try {
-    Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
-    $script:WindowsFormsAlertsAvailable = $true
-} catch {
-    Write-Warning "Windows Forms alerts are unavailable; WPF alerts will be used."
+if (-not (Test-Path -LiteralPath $uiHostPath)) {
+    throw "LiteDeploy.UiHost.ps1 was not found beside SelectWorkflow or under components/04-UiHost."
 }
+. $uiHostPath
+
+$uiInit = Initialize-LiteDeployUiHost `
+    -EnforceSta `
+    -ScriptPath $PSCommandPath `
+    -AbortStaRelaunchWhenCredentialBound:([bool]$BootObject)
+if ($uiInit.Relaunched) { return }
+
+$script:WindowsFormsAlertsAvailable = [bool]$uiInit.WindowsForms
+$palette = Get-LiteDeployUiThemePalette -Theme $Theme
+$buttonStyles = Get-LiteDeployUiButtonStyleXaml -Palette $palette -Density Default
+$windowSize = Get-LiteDeployUiWindowSize -HeightFraction 0.85 -MinHeight 600 -MaxHeight 900 -AspectWidth 1024 -AspectHeight 820
 
 if ($BootObject) {
     $global:LiteDeployBootObject = $BootObject
@@ -51,22 +54,7 @@ function Show-DeploymentWarning {
         [string]$Title = "Missing Deployment Information"
     )
 
-    if ($script:WindowsFormsAlertsAvailable) {
-        [System.Windows.Forms.MessageBox]::Show(
-            $Message,
-            $Title,
-            [System.Windows.Forms.MessageBoxButtons]::OK,
-            [System.Windows.Forms.MessageBoxIcon]::Warning
-        ) | Out-Null
-        return
-    }
-
-    [System.Windows.MessageBox]::Show(
-        $Message,
-        $Title,
-        [System.Windows.MessageBoxButton]::OK,
-        [System.Windows.MessageBoxImage]::Warning
-    ) | Out-Null
+    $null = Show-LiteDeployUiMessage -Message $Message -Title $Title -Buttons OK -Icon Warning
 }
 
 # Load the WPF-only folder picker used by the driver selection control.
@@ -132,16 +120,16 @@ if ($bootConfig) {
         WindowState="Normal" 
         WindowStyle="SingleBorderWindow"
         ResizeMode="NoResize"
-        Width="1024" Height="820"
+        Width="$($windowSize.Width)" Height="$($windowSize.Height)"
         MinWidth="800" MinHeight="600"
         WindowStartupLocation="CenterScreen"
-        Background="#FFFFFF">
+        Background="$($palette.BgMain)">
     
     <Window.Resources>
         <Style x:Key="ActionLinkStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Foreground" Value="#005A9E"/>
+            <Setter Property="Foreground" Value="$($palette.BrandPrimary)"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Margin" Value="0,0,16,0"/>
@@ -154,60 +142,14 @@ if ($bootConfig) {
             </Setter>
         </Style>
 
-        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#005A9E"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#005A9E"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Padding" Value="24,7"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="5">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="border" Property="Background" Value="#0078D4"/><Setter TargetName="border" Property="BorderBrush" Value="#0078D4"/></Trigger>
-                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="border" Property="Background" Value="#004E8C"/></Trigger>
-                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="border" Property="Background" Value="#F3F4F6"/><Setter TargetName="border" Property="BorderBrush" Value="#E5E7EB"/><Setter Property="Foreground" Value="#9CA3AF"/><Setter Property="Cursor" Value="No"/></Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="SecondaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#FFFFFF"/>
-            <Setter Property="Foreground" Value="#1F2937"/>
-            <Setter Property="BorderBrush" Value="#D9E0E7"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Padding" Value="16,6"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="5">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="border" Property="Background" Value="#F3F4F6"/><Setter TargetName="border" Property="BorderBrush" Value="#005A9E"/></Trigger>
-                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="border" Property="Background" Value="#E5E7EB"/></Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+$($buttonStyles.PrimaryButtonStyleXaml)
+$($buttonStyles.SecondaryButtonStyleXaml)
 
         <!-- Modern Clean Styled TextBox -->
         <Style TargetType="TextBox">
-            <Setter Property="Background" Value="#FFFFFF"/>
-            <Setter Property="Foreground" Value="#1A1A1A"/>
-            <Setter Property="BorderBrush" Value="#D9E0E7"/>
+            <Setter Property="Background" Value="$($palette.BgMain)"/>
+            <Setter Property="Foreground" Value="$($palette.TextPrimary)"/>
+            <Setter Property="BorderBrush" Value="$($palette.Border)"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontFamily" Value="Segoe UI"/>
@@ -218,9 +160,9 @@ if ($bootConfig) {
         <!-- Workflow / Parent Header Template -->
         <DataTemplate x:Key="WorkflowHeaderTemplate">
             <StackPanel Orientation="Horizontal" Margin="0,2">
-                <Path Width="18" Height="18" Stretch="Uniform" Fill="#005A9E" Margin="0,0,8,0"
+                <Path Width="18" Height="18" Stretch="Uniform" Fill="$($palette.BrandPrimary)" Margin="0,0,8,0"
                       Data="M19,13H13V19H19V13M11,13H5V19H11V13M19,5H13V11H19V5M11,5H5V11H11V5M3,3H21V21H3V3Z"/>
-                <TextBlock Text="{Binding HeaderText}" FontWeight="Bold" FontSize="13" Foreground="#005A9E" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding HeaderText}" FontWeight="Bold" FontSize="13" Foreground="$($palette.BrandPrimary)" VerticalAlignment="Center"/>
             </StackPanel>
         </DataTemplate>
 
@@ -234,7 +176,7 @@ if ($bootConfig) {
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <Path x:Name="ItemIcon" Grid.Column="0" Width="16" Height="16" Stretch="Uniform" Fill="#005A9E" Margin="0,0,10,0" VerticalAlignment="Center"
+                <Path x:Name="ItemIcon" Grid.Column="0" Width="16" Height="16" Stretch="Uniform" Fill="$($palette.BrandPrimary)" Margin="0,0,10,0" VerticalAlignment="Center"
                       Data="M6,2H18A2,2 0 0,1 20,4V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2M6,4V8H18V4H6M6,20H18V10H6V20M16,15A1,1 0 0,0 15,14A1,1 0 0,0 14,15A1,1 0 0,0 16,15Z"/>
 
                 <TextBlock x:Name="ItemName" Grid.Column="1" Text="{Binding Name}" FontSize="13" Foreground="#1F2937" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,30,0"/>
@@ -256,9 +198,9 @@ if ($bootConfig) {
             <Setter Property="Padding" Value="4,2"/>
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
             <Style.Resources>
-                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#0078D4" />
+                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="$($palette.BrandHover)" />
                 <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFFFFF" />
-                <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#0078D4" />
+                <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="$($palette.BrandHover)" />
                 <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="#FFFFFF" />
             </Style.Resources>
         </Style>
@@ -279,7 +221,7 @@ if ($bootConfig) {
         <TextBlock DockPanel.Dock="Top" Name="TxtHeader" 
                    Text="Configure deployment settings" 
                    FontSize="24" FontFamily="Segoe UI Light" 
-                   Foreground="#005A9E" Margin="0,0,0,12"/>
+                   Foreground="$($palette.BrandPrimary)" Margin="0,0,0,12"/>
 
         <!-- Footer Navigation Bar (Docked Bottom) -->
         <DockPanel DockPanel.Dock="Bottom" Margin="0,16,0,0">
@@ -294,7 +236,7 @@ if ($bootConfig) {
         <StackPanel Name="MainSetupPanel" VerticalAlignment="Top" HorizontalAlignment="Stretch">
             
             <!-- SECTION 1: Computer Identification -->
-            <TextBlock Name="HeaderComputerID" Text="Computer Identification" FontSize="13" FontWeight="SemiBold" Foreground="#005A9E" Margin="0,2,0,4" FontFamily="Segoe UI"/>
+            <TextBlock Name="HeaderComputerID" Text="Computer Identification" FontSize="13" FontWeight="SemiBold" Foreground="$($palette.BrandPrimary)" Margin="0,2,0,4" FontFamily="Segoe UI"/>
 
             <Border Name="CardComputerID" Background="#FFFFFF" BorderBrush="#D9E0E7" BorderThickness="1" CornerRadius="5" Padding="12,10" Margin="0,0,0,8" HorizontalAlignment="Stretch">
                 <StackPanel Name="ContainerComputerID" HorizontalAlignment="Stretch">
@@ -326,7 +268,7 @@ if ($bootConfig) {
             </Border>
 
             <!-- SECTION 2: Deployment Workflow Selection -->
-            <TextBlock Text="Select deployment workflow" FontSize="13" FontWeight="SemiBold" Foreground="#005A9E" Margin="0,2,0,4" FontFamily="Segoe UI"/>
+            <TextBlock Text="Select deployment workflow" FontSize="13" FontWeight="SemiBold" Foreground="$($palette.BrandPrimary)" Margin="0,2,0,4" FontFamily="Segoe UI"/>
             
             <Border Background="#FFFFFF" BorderBrush="#D9E0E7" BorderThickness="1" CornerRadius="5" Height="200" Margin="0,0,0,8" HorizontalAlignment="Stretch">
                 <TreeView Name="treeViewWorkflows" Grid.IsSharedSizeScope="True" Background="Transparent" BorderThickness="0" Padding="4" HorizontalContentAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto">
@@ -355,7 +297,7 @@ if ($bootConfig) {
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="Select target hard drive" FontSize="13" FontWeight="SemiBold" Foreground="#005A9E" VerticalAlignment="Center" FontFamily="Segoe UI"/>
+                <TextBlock Grid.Column="0" Text="Select target hard drive" FontSize="13" FontWeight="SemiBold" Foreground="$($palette.BrandPrimary)" VerticalAlignment="Center" FontFamily="Segoe UI"/>
                 <Button Grid.Column="1" Name="BtnRefresh" Content="Refresh Disks" Style="{StaticResource ActionLinkStyle}"/>
             </Grid>
 
@@ -368,8 +310,8 @@ if ($bootConfig) {
                           CanUserResizeColumns="True" HorizontalAlignment="Stretch">
                     <DataGrid.Resources>
                         <!-- Keep the selected disk blue when keyboard focus moves elsewhere. -->
-                        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#0078D4"/>
-                        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#0078D4"/>
+                        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="$($palette.BrandHover)"/>
+                        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="$($palette.BrandHover)"/>
                     </DataGrid.Resources>
                     <DataGrid.CellStyle>
                         <Style TargetType="DataGridCell">
@@ -395,7 +337,7 @@ if ($bootConfig) {
             <TextBlock Name="TxtDiskError" Foreground="#D13438" FontSize="11" Margin="2,-5,0,6" Height="14" Visibility="Hidden" TextWrapping="NoWrap" FontFamily="Segoe UI"/>
 
             <!-- SECTION 4: Drivers & Hardware Injections -->
-            <TextBlock Text="Drivers &amp; Hardware Injections" FontSize="13" FontWeight="SemiBold" Foreground="#005A9E" Margin="0,2,0,4" FontFamily="Segoe UI"/>
+            <TextBlock Text="Drivers &amp; Hardware Injections" FontSize="13" FontWeight="SemiBold" Foreground="$($palette.BrandPrimary)" Margin="0,2,0,4" FontFamily="Segoe UI"/>
             
             <Border Background="#FFFFFF" BorderBrush="#D9E0E7" BorderThickness="1" CornerRadius="5" Padding="12,10" HorizontalAlignment="Stretch">
                 <StackPanel Name="ContainerDrivers" HorizontalAlignment="Stretch">
@@ -407,7 +349,7 @@ if ($bootConfig) {
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="Manufacturer &amp; Model:" FontWeight="SemiBold" FontSize="12.5" Foreground="#374151" FontFamily="Segoe UI"/>
-                        <TextBlock Grid.Column="1" Name="TxtDetectedHardware" Text="Detecting..." FontSize="12.5" Foreground="#005A9E" FontWeight="SemiBold" FontFamily="Segoe UI"/>
+                        <TextBlock Grid.Column="1" Name="TxtDetectedHardware" Text="Detecting..." FontSize="12.5" Foreground="$($palette.BrandPrimary)" FontWeight="SemiBold" FontFamily="Segoe UI"/>
                     </Grid>
 
                     <!-- Manual Driver Pack Selection -->

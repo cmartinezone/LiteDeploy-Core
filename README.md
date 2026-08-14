@@ -29,6 +29,7 @@ The production product repo is **LiteDeploy**. A component moves there only afte
 | 02 | [DeploymentShareACL](components/02-DeploymentShareACL) | Share folders, SMB, and NTFS log isolation | Exists |
 | 03 | [LogWriter](components/03-LogWriter) | CMTrace + NDJSON logging | Exists |
 | 04 | [HostShell](components/04-HostShell) | WinPE console geometry, theme, and presets | Exists |
+| — | [UiHost](components/04-UiHost) | Shared WPF chrome (theme, buttons, backdrop, messages) | Exists |
 | 05 | [BootInitializer](components/05-BootInitializer) | Discovers config, maps `Z:\`, builds `BootObject`, starts DeploymentEngine | Exists |
 | 06 | [PreCheck](components/06-PreCheck) | Nine-point readiness UI; returns structured result | Exists |
 | 07 | [SelectWorkflow](components/07-SelectWorkflow) | Identity, workflow, disk, and drivers; returns structured selection | Exists |
@@ -80,3 +81,4 @@ These stay in their own GitHub repos. LiteDeploy Core consumes them; it does not
 - [Architecture diagrams](docs/architecture/LITEDEPLOY_DEPLOYMENT_DIAGRAM.md)
 - [Catalog and workflow spec](docs/architecture/LITEDEPLOY_CATALOG_WORKFLOW_SPEC.md)
 - [Project status](docs/architecture/LITEDEPLOY_PROJECT_STATUS.md)
+- [Shared WPF UI host](docs/architecture/LITEDEPLOY_UI_HOST.md)
