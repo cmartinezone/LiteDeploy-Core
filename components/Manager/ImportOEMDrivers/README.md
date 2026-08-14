@@ -14,7 +14,7 @@ LiteDeployManager tool that imports an OEM driver pack into the deployment share
 5. Upserts the manufacturer / model entry in `catalog.json`
 6. Or registers many supported models from a **CSV** (`-ModelsCsvPath`)
 
-Vendor catalog discovery files (Dell/HP/Lenovo index CABs) should also download/extract under `Content\Temp\OemCatalogs\` when that sync is added.
+Vendor catalog discovery (Dell `CatalogIndexPC`, HP `platformList`, Lenovo/Surface) is **not implemented yet**. Design (learned from FFU, LiteDeploy-owned): [LITEDEPLOY_OEM_CATALOG_SYNC.md](../../../docs/architecture/LITEDEPLOY_OEM_CATALOG_SYNC.md). Indexes will land under `Content\Temp\OemCatalogs\`.
 
 ## Supported-models CSV
 
