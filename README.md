@@ -83,6 +83,7 @@ These stay in their own GitHub repos. LiteDeploy Core consumes them; it does not
 
 - [Deployment plan](docs/architecture/LITEDEPLOY_DEPLOYMENT_PLAN.md)
 - [Workflow schema](docs/architecture/LITEDEPLOY_WORKFLOW_SCHEMA.md)
+- [Drivers catalog](docs/architecture/LITEDEPLOY_DRIVERS_CATALOG.md)
 - [Dev branch](docs/architecture/LITEDEPLOY_DEV_BRANCH.md)
 - [UiHost](docs/architecture/LITEDEPLOY_UI_HOST.md)
 - [Components](components/README.md)

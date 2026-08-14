@@ -21,6 +21,8 @@ DeploymentShare\
       WIM\
     Drivers\
       catalog.json
+      schemas\
+        drivers-catalog.schema.json
     OperatingSystems\
       catalog.json
     Packages\
@@ -46,4 +48,4 @@ Approved Core scripts promote into `Engine\Scripts`. [WinPEBuilder](https://gith
 
 [LiteDeploy.SetDeploymentShareAcl.ps1](../components/Manager/DeploymentShareACL/LiteDeploy.SetDeploymentShareAcl.ps1) applies SMB and NTFS permissions onto a provisioned copy of this tree.
 
-OS, package, and driver catalogs here remain placeholders until ImportOSMedia / package publishing. Workflow schema and examples are the v1 reference contract — see [LITEDEPLOY_WORKFLOW_SCHEMA.md](../docs/architecture/LITEDEPLOY_WORKFLOW_SCHEMA.md).
+OS and package catalogs remain placeholders until ImportOSMedia / package publishing. Workflow and drivers catalogs are v1 reference contracts — see [LITEDEPLOY_WORKFLOW_SCHEMA.md](../docs/architecture/LITEDEPLOY_WORKFLOW_SCHEMA.md) and [LITEDEPLOY_DRIVERS_CATALOG.md](../docs/architecture/LITEDEPLOY_DRIVERS_CATALOG.md).

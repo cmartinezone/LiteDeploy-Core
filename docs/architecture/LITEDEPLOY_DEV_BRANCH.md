@@ -32,10 +32,12 @@ LiteDeploy engine and Manager/Runtime work integrates on **`dev`**, not on `main
 - Structured PreCheck / SelectWorkflow return contracts  
 - `ComputerSetup.DriveSelection` / `ComputerSetup.ImageEngine` on BootConfig  
 - Workflow v1 schema + Standard / Intune examples under `DeploymentShare/WorkFlows`
+- Drivers catalog v1 (`manufacturerId` / `systemSku` / `Extracted`) under `DeploymentShare/Content/Drivers`
 
 ## Related
 
 - [LITEDEPLOY_DEPLOYMENT_PLAN.md](LITEDEPLOY_DEPLOYMENT_PLAN.md) — runtime orchestration sequence  
 - [LITEDEPLOY_UI_HOST.md](LITEDEPLOY_UI_HOST.md) — shared UI chrome  
 - [LITEDEPLOY_WORKFLOW_SCHEMA.md](LITEDEPLOY_WORKFLOW_SCHEMA.md) — workflow JSON reference  
+- [LITEDEPLOY_DRIVERS_CATALOG.md](LITEDEPLOY_DRIVERS_CATALOG.md) — drivers catalog reference  
 - [components/README.md](../../components/README.md) — Manager vs Runtime map  
