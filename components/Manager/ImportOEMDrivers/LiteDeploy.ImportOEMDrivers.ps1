@@ -3,10 +3,10 @@
     Imports an OEM driver pack into the LiteDeploy drivers catalog and share layout.
 
 .DESCRIPTION
-    LiteDeployManager tool. Places FullOS drivers under <Model>\Extracted\ and optional
-    WinPE drivers under <ManufacturerName>\WinPE\ (manufacturer root), then upserts
-    Content\Drivers\catalog.json using the v1 drivers catalog contract
-    (manufacturerId from WMI, systemSku, format, dates).
+    LiteDeployManager tool. Places FullOS drivers under <Model>\Extracted\.
+    WinPE is a catalog model under the manufacturer (folder WinPE\, modelId winpe)
+    with the same Extracted\ layout. Upserts Content\Drivers\catalog.json using the
+    v1 drivers catalog contract (manufacturerId from WMI, systemSku, format, dates).
 
     Local import: pass -SourcePath (.cab / .exe / extracted folder).
     Remote import: pass -DownloadLink without -SourcePath to download first.
@@ -50,8 +50,9 @@
     Local .cab, .exe, or folder of extracted FullOS drivers. Optional when -DownloadLink is set for remote import.
 
 .PARAMETER WinPESourcePath
-    Optional folder of WinPE storage/NIC drivers to copy into
-    Content\Drivers\<ManufacturerName>\WinPE\ (shared for the manufacturer).
+    Optional folder of WinPE storage/NIC drivers copied into the manufacturer
+    WinPE model: Content\Drivers\<ManufacturerName>\WinPE\Extracted\.
+    The WinPE model (modelId winpe, role winpe) is registered in catalog.json.
 
 .PARAMETER FolderName
     Model folder leaf under Content\Drivers\<ManufacturerName>\. Defaults to ModelName.
@@ -74,7 +75,7 @@
     CSV field delimiter. Default is comma (,).
 
 .PARAMETER Force
-    Overwrite existing model Extracted\ and/or manufacturer WinPE\ content and replace catalog model entry fields.
+    Overwrite existing model Extracted\ / WinPE model Extracted\ content and replace catalog model entry fields.
 
 .EXAMPLE
     .\LiteDeploy.ImportOEMDrivers.ps1 `
@@ -594,6 +595,110 @@ function Update-DriversCatalogEntry {
     return $Catalog
 }
 
+function Get-ManufacturerWinPePaths {
+    param(
+        [string]$DriversRoot,
+        [string]$ManufacturerName
+    )
+
+    $modelFolder = Join-Path (Join-Path $DriversRoot $ManufacturerName) "WinPE"
+    return [pscustomobject]@{
+        ModelFolder     = $modelFolder
+        ExtractedFolder = (Join-Path $modelFolder "Extracted")
+    }
+}
+
+function Test-DriversCatalogHasModel {
+    param(
+        $Catalog,
+        [string]$ManufacturerId,
+        [string]$ModelId
+    )
+
+    foreach ($mfr in @($Catalog.manufacturers)) {
+        if (-not [string]::Equals([string]$mfr.manufacturerId, $ManufacturerId, [StringComparison]::OrdinalIgnoreCase)) {
+            continue
+        }
+        foreach ($model in @($mfr.models)) {
+            if ([string]::Equals([string]$model.modelId, $ModelId, [StringComparison]::OrdinalIgnoreCase)) {
+                return $true
+            }
+        }
+    }
+    return $false
+}
+
+function Ensure-ManufacturerWinPeModel {
+    param(
+        [string]$DeploymentRoot,
+        [string]$DriversRoot,
+        [string]$CatalogPath,
+        $Catalog,
+        [string]$ManufacturerId,
+        [string]$ManufacturerName,
+        [string]$ReleaseDate,
+        [string]$ImportedDate,
+        [string]$Version,
+        [string]$Format,
+        [bool]$Enabled,
+        [string]$WinPESourcePath,
+        [switch]$Force
+    )
+
+    $paths = Get-ManufacturerWinPePaths -DriversRoot $DriversRoot -ManufacturerName $ManufacturerName
+    $modelFolder = $paths.ModelFolder
+    $extractedFolder = $paths.ExtractedFolder
+
+    if (-not (Test-Path -LiteralPath $modelFolder)) {
+        $null = New-Item -Path $modelFolder -ItemType Directory -Force
+    }
+    if (-not (Test-Path -LiteralPath $extractedFolder)) {
+        $null = New-Item -Path $extractedFolder -ItemType Directory -Force
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($WinPESourcePath)) {
+        Write-ImportLog "Copying WinPE drivers → $ManufacturerName\WinPE\Extracted\"
+        Copy-DriverTree -Source $WinPESourcePath -Destination $extractedFolder -Force:$Force
+    }
+    else {
+        Write-ImportLog "Ensured WinPE model folder: $ManufacturerName\WinPE\Extracted\" -ForegroundColor DarkYellow
+    }
+
+    $relativePath = New-RelativeSharePath -Root $DeploymentRoot -FullPath $modelFolder
+    $winPeVersion = if (-not [string]::IsNullOrWhiteSpace($Version)) { $Version } else { "unknown" }
+    $winPeFormat = if ($Format -in @("exe", "cab")) { $Format } else { "cab" }
+
+    $modelEntry = [ordered]@{
+        modelId      = "winpe"
+        name         = "WinPE"
+        systemSku    = @("WINPE")
+        role         = "winpe"
+        version      = $winPeVersion
+        releaseDate  = $ReleaseDate
+        importedDate = $ImportedDate
+        format       = $winPeFormat
+        enabled      = [bool]$Enabled
+        path         = $relativePath
+    }
+
+    $already = Test-DriversCatalogHasModel -Catalog $Catalog -ManufacturerId $ManufacturerId -ModelId "winpe"
+    $catalogOut = Update-DriversCatalogEntry `
+        -Catalog $Catalog `
+        -ManufacturerId $ManufacturerId `
+        -ManufacturerName $ManufacturerName `
+        -ManufacturerEnabled $true `
+        -ModelEntry $modelEntry `
+        -Force:($Force -or $already)
+
+    Write-ImportLog "WinPE model registered: $ManufacturerName / WinPE [winpe] → $relativePath" -ForegroundColor Green
+    return [pscustomobject]@{
+        Catalog         = $catalogOut
+        ModelFolder     = $modelFolder
+        ExtractedFolder = $extractedFolder
+        RelativePath    = $relativePath
+    }
+}
+
 function ConvertTo-LiteDeployModelId {
     param([string]$Name)
 
@@ -675,12 +780,19 @@ function Import-SupportedModelsFromCsv {
         } else {
             ConvertTo-LiteDeployModelId -Name $modelName
         }
+        if ([string]::Equals($modelId, "winpe", [StringComparison]::OrdinalIgnoreCase) -or
+            [string]::Equals($modelName.Trim(), "WinPE", [StringComparison]::OrdinalIgnoreCase)) {
+            throw "CSV row $rowNumber uses reserved WinPE model name/id. WinPE is registered automatically as a manufacturer model."
+        }
 
         $folderNameRaw = Get-CsvPropertyValue -Row $row -CandidateNames @("FolderName", "Folder")
         $folderName = if (-not [string]::IsNullOrWhiteSpace($folderNameRaw)) {
             $folderNameRaw.Trim()
         } else {
             $modelName.Trim()
+        }
+        if ([string]::Equals($folderName, "WinPE", [StringComparison]::OrdinalIgnoreCase)) {
+            throw "CSV row $rowNumber FolderName 'WinPE' is reserved for the manufacturer WinPE model."
         }
 
         $versionRaw = Get-CsvPropertyValue -Row $row -CandidateNames @("Version")
@@ -711,7 +823,6 @@ function Import-SupportedModelsFromCsv {
         $manufacturerFolder = Join-Path $driversRoot $ManufacturerName
         $modelFolder = Join-Path $manufacturerFolder $folderName
         $extractedFolder = Join-Path $modelFolder "Extracted"
-        $winPeFolder = Join-Path $manufacturerFolder "WinPE"
 
         if (-not $PSCmdlet.ShouldProcess($modelFolder, "Register CSV model '$modelName'")) {
             continue
@@ -723,15 +834,13 @@ function Import-SupportedModelsFromCsv {
         if (-not (Test-Path -LiteralPath $extractedFolder)) {
             $null = New-Item -Path $extractedFolder -ItemType Directory -Force
         }
-        if (-not (Test-Path -LiteralPath $winPeFolder)) {
-            $null = New-Item -Path $winPeFolder -ItemType Directory -Force
-        }
 
         $relativePath = New-RelativeSharePath -Root $DeploymentRoot -FullPath $modelFolder
         $modelEntry = [ordered]@{
             modelId      = $modelId
             name         = $modelName.Trim()
             systemSku    = @($skuList)
+            role         = "fullOs"
             version      = $rowVersion
             releaseDate  = $ReleaseDate
             importedDate = $ImportedDate
@@ -762,6 +871,22 @@ function Import-SupportedModelsFromCsv {
         })
     }
 
+    $winPeResult = Ensure-ManufacturerWinPeModel `
+        -DeploymentRoot $DeploymentRoot `
+        -DriversRoot $driversRoot `
+        -CatalogPath $catalogPath `
+        -Catalog $catalog `
+        -ManufacturerId $ManufacturerId `
+        -ManufacturerName $ManufacturerName `
+        -ReleaseDate $ReleaseDate `
+        -ImportedDate $ImportedDate `
+        -Version $DefaultVersion `
+        -Format $DefaultFormat `
+        -Enabled $Enabled `
+        -WinPESourcePath "" `
+        -Force:$Force
+    $catalog = $winPeResult.Catalog
+
     $ordered = ConvertTo-OrderedCatalog -Catalog $catalog
     $json = $ordered | ConvertTo-Json -Depth 8
     Set-Content -LiteralPath $catalogPath -Value $json -Encoding UTF8 -Force
@@ -773,6 +898,7 @@ function Import-SupportedModelsFromCsv {
         ManufacturerName = $ManufacturerName
         ModelCount       = $imported.Count
         Models           = @($imported.ToArray())
+        WinPEPath        = $winPeResult.ExtractedFolder
     }
 }
 
@@ -830,6 +956,12 @@ if ([string]::IsNullOrWhiteSpace($FolderName)) {
 }
 $FolderName = $FolderName.Trim()
 
+if ([string]::Equals($ModelId, "winpe", [StringComparison]::OrdinalIgnoreCase) -or
+    [string]::Equals($FolderName, "WinPE", [StringComparison]::OrdinalIgnoreCase) -or
+    [string]::Equals($ModelName, "WinPE", [StringComparison]::OrdinalIgnoreCase)) {
+    throw "ModelId/ModelName/FolderName 'WinPE' is reserved for the manufacturer WinPE model. Use -WinPESourcePath to populate it."
+}
+
 $downloadLinkValue = if ([string]::IsNullOrWhiteSpace($DownloadLink)) { "" } else { $DownloadLink.Trim() }
 $effectiveSourcePath = $SourcePath
 
@@ -855,7 +987,8 @@ $catalogPath = Join-Path $driversRoot "catalog.json"
 $manufacturerFolder = Join-Path $driversRoot $ManufacturerName
 $modelFolder = Join-Path $manufacturerFolder $FolderName
 $extractedFolder = Join-Path $modelFolder "Extracted"
-$winPeFolder = Join-Path $manufacturerFolder "WinPE"
+$winPePaths = Get-ManufacturerWinPePaths -DriversRoot $driversRoot -ManufacturerName $ManufacturerName
+# WinPE model paths are resolved again inside Ensure-ManufacturerWinPeModel.
 # Online packs and CAB expands stage under Content\Temp, then promote into Drivers\.
 $tempWorkRoot = Join-Path $tempRoot (Join-Path "ImportOEMDrivers" (Join-Path $ManufacturerName $ModelId))
 $downloadStaging = Join-Path $tempWorkRoot "Download"
@@ -941,23 +1074,13 @@ else {
     Import-SourceIntoExtracted -SourcePath $sourceForImport -ModelFolder $modelFolder -ExtractedFolder $extractedFolder -ResolvedFormat $Format -Force:$Force
 }
 
-if (-not [string]::IsNullOrWhiteSpace($WinPESourcePath)) {
-    Write-ImportLog "Copying WinPE drivers → $ManufacturerName\WinPE\"
-    Copy-DriverTree -Source $WinPESourcePath -Destination $winPeFolder -Force:$Force
-}
-else {
-    if (-not (Test-Path -LiteralPath $winPeFolder)) {
-        $null = New-Item -Path $winPeFolder -ItemType Directory -Force
-        Write-ImportLog "Created empty $ManufacturerName\WinPE\ (shared manufacturer WinPE; add storage/NIC drivers later)." -ForegroundColor DarkYellow
-    }
-}
-
 $relativePath = New-RelativeSharePath -Root $DeploymentRoot -FullPath $modelFolder
 
 $modelEntry = [ordered]@{
     modelId      = $ModelId
     name         = $ModelName
     systemSku    = @($skuList)
+    role         = "fullOs"
     version      = $Version
     releaseDate  = $ReleaseDate
     importedDate = $importedDate
@@ -978,20 +1101,37 @@ $catalog = Update-DriversCatalogEntry `
     -ModelEntry $modelEntry `
     -Force:$Force
 
+$winPeResult = Ensure-ManufacturerWinPeModel `
+    -DeploymentRoot $DeploymentRoot `
+    -DriversRoot $driversRoot `
+    -CatalogPath $catalogPath `
+    -Catalog $catalog `
+    -ManufacturerId $ManufacturerId `
+    -ManufacturerName $ManufacturerName `
+    -ReleaseDate $ReleaseDate `
+    -ImportedDate $importedDate `
+    -Version $Version `
+    -Format $Format `
+    -Enabled $Enabled `
+    -WinPESourcePath $WinPESourcePath `
+    -Force:$Force
+$catalog = $winPeResult.Catalog
+
 $ordered = ConvertTo-OrderedCatalog -Catalog $catalog
 $json = $ordered | ConvertTo-Json -Depth 8
 Set-Content -LiteralPath $catalogPath -Value $json -Encoding UTF8 -Force
 
 Write-ImportLog "Catalog updated : $catalogPath" -ForegroundColor Green
 Write-ImportLog "Extracted       : $extractedFolder" -ForegroundColor Green
-Write-ImportLog "WinPE           : $winPeFolder" -ForegroundColor Green
+Write-ImportLog "WinPE model     : $($winPeResult.ExtractedFolder)" -ForegroundColor Green
 Write-ImportLog "Temp staging    : $tempWorkRoot" -ForegroundColor DarkCyan
 
 return [pscustomobject]@{
     CatalogPath      = $catalogPath
     ModelFolder      = $modelFolder
     ExtractedPath    = $extractedFolder
-    WinPEPath        = $winPeFolder
+    WinPEPath        = $winPeResult.ExtractedFolder
+    WinPEModelPath   = $winPeResult.ModelFolder
     TempWorkRoot     = $tempWorkRoot
     RelativePath     = $relativePath
     ManufacturerId   = $ManufacturerId

@@ -8,7 +8,7 @@ LiteDeploy does **not** import FFU code. We reuse vendor *index URLs and SKU mat
 | | **FFU** | **LiteDeploy** |
 | --- | --- | --- |
 | What they download | Many **individual** latest drivers (SoftPaq / PDK EXE sets) | One **driver pack** per model (CAB/EXE) |
-| On disk | Loose INF tree under `Drivers\Make\Model` (+ optional WIM) | Pack → model **`Extracted\`**; shared manufacturer **`WinPE\`** |
+| On disk | Loose INF tree under `Drivers\Make\Model` (+ optional WIM) | Pack → model **`Extracted\`**; WinPE is a **catalog model** (`WinPE\Extracted\`) |
 | How deploy matches hardware | Separate **`DriverMapping.json`** “matching repo” (SystemId / MachineType → folder); ApplyFFU picks the folder | Select/resolve model folder once → pass that **directory path into `Setup.exe` as a switch**; no separate mapping file |
 | Why different | FFU applies drivers itself from a matched folder/WIM | **`ImageEngine: Setup.exe`** receives the model dir path; Setup installs from that folder |
 
@@ -142,9 +142,10 @@ Content\Temp\OemCatalogs\
 Content\Drivers\
   catalog.json
   <ManufacturerName>\
-    WinPE\                      ← manufacturer-root WinPE
+    WinPE\                      ← model role=winpe
+      Extracted\
     <Model>\
-      Extracted\                ← FullOS / Setup.exe
+      Extracted\                ← model role=fullOs / Setup.exe
 ```
 
 ### Match keys we already agreed

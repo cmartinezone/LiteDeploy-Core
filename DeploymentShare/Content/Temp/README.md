@@ -12,6 +12,6 @@ Content\Temp\
   OemCatalogs\        ← vendor catalog CAB/XML cache (Dell / HP / Lenovo) via SyncOEMDrivers
 ```
 
-`ImportOEMDrivers` downloads online packs here, extracts CABs here, then copies the driver tree into `Content\Drivers\<Manufacturer>\<Model>\Extracted`. WinPE drivers publish to `Content\Drivers\<Manufacturer>\WinPE`.
+`ImportOEMDrivers` downloads online packs here, extracts CABs here, then copies into `Content\Drivers\<Manufacturer>\<Model>\Extracted`. The manufacturer WinPE **model** publishes to `Content\Drivers\<Manufacturer>\WinPE\Extracted`.
 
 `SyncOEMDrivers` refreshes `OemCatalogs\`, runs `-CheckStatus` (shell table vs `catalog.json`), and `-UpdateAll` / `-Model` / `-SystemSku`. Design: [LITEDEPLOY_OEM_CATALOG_SYNC.md](../../../docs/architecture/LITEDEPLOY_OEM_CATALOG_SYNC.md).
