@@ -20,7 +20,7 @@ So: learn *where* catalogs live from FFU; **do not** copy their per-driver downl
 | --- | --- |
 | Pack download (`-DownloadLink`) | Implemented (`ImportOEMDrivers`) |
 | Manual supported-models CSV | Implemented (`-ModelsCsvPath`) |
-| Online vendor **catalog** sync + status/update | Scaffolded (`SyncOEMDrivers`) — Dell/HP/Lenovo index refresh + `-CheckStatus` table; `-Update*` uses stored `downloadLink` |
+| Online vendor **catalog** sync + status/update | `SyncOEMDrivers` — Dell/HP/Lenovo **pack version** compare in `-CheckStatus`; `-Update*` uses stored `downloadLink` |
 
 ## Manager CLI: SyncOEMDrivers
 
@@ -28,7 +28,7 @@ Script: [`components/Manager/SyncOEMDrivers/LiteDeploy.SyncOEMDrivers.ps1`](../.
 
 ### `-CheckStatus`
 
-Compares **our** `Content\Drivers\catalog.json` to refreshed vendor indexes under `Content\Temp\OemCatalogs\`, then prints a shell table.
+Compares **our** `Content\Drivers\catalog.json` to refreshed vendor **driver pack** catalogs under `Content\Temp\OemCatalogs\`, then prints a shell table with **LocalVersion** vs **OnlineVersion**.
 
 ```powershell
 .\LiteDeploy.SyncOEMDrivers.ps1 `
@@ -50,23 +50,23 @@ Typical columns:
 | Model | Catalog model name |
 | SystemSku | Local SKU(s) |
 | LocalVersion | `models[].version` |
-| PathOk | Model folder / `Extracted` present |
-| VendorHit | SKU found in OEM index |
-| VendorName | Name from vendor index (when hit) |
+| OnlineVersion | Vendor pack version (Dell `dellVersion`, HP SoftPaq version, Lenovo SCCM version) |
+| OnlineDate | Vendor pack release date |
 | Status | See below |
 
 **Status values**
 
 | Status | Meaning |
 | --- | --- |
-| `Current` | Local model; SKU still listed in vendor index |
-| `MissingFromVendor` | Local model; SKU not found in vendor index (retired / rename / wrong SKU) |
-| `NoVendorIndex` | Vendor index not available for that manufacturer |
+| `Current` | Local version/date is current vs online pack catalog |
+| `UpdateAvailable` | Newer pack online — `OnlineVersion` / `OnlineDate` outlined |
+| `MissingFromVendor` | Local model; SKU not found in vendor pack catalog |
+| `NoVendorIndex` | Vendor pack catalog not available for that manufacturer |
 | `MissingContent` | Catalog entry exists but `Extracted` empty / path missing |
-| `UpdateReady` | Local has `downloadLink` (or resolved URL) — `-Update*` can refresh pack |
-| `NewInAllowList` | In CSV allow-list / filter, in vendor index, **not** in our catalog yet |
+| `NewInAllowList` | In CSV allow-list, in vendor catalog, **not** in our catalog yet |
+| `WinPeModel` | Manufacturer WinPE model (skipped for FullOS pack compare) |
 
-Without `-ModelsCsvPath`, vendor-only “new” rows are **not** dumped (Dell/HP indexes are huge). Pass CSV (or later an allow-list) to surface **new** models/SKUs.
+Without `-ModelsCsvPath`, vendor-only “new” rows are **not** dumped (indexes are huge). Pass CSV to surface **new** models/SKUs.
 
 ### `-UpdateAll` / model / SKU
 
@@ -85,17 +85,17 @@ Re-download packs into the deployment share for matching catalog rows that have 
 
 Optional: `-ManufacturerName Dell` to scope UpdateAll. `-Force` replaces existing Extracted content. `-WhatIf` supported.
 
-**Update always means:** download the **driver pack** → extract into that model’s **`Extracted\`** (via `ImportOEMDrivers`). It does **not** build an FFU-style individual-driver matching repo. Vendor indexes are only for `-CheckStatus` discovery / SKU presence (and later resolving a pack URL into `downloadLink`).
+**Update always means:** download the **driver pack** → extract into that model’s **`Extracted\`** (via `ImportOEMDrivers`). It does **not** build an FFU-style individual-driver matching repo. `-CheckStatus` uses vendor **pack** catalogs to outline newer versions (`UpdateAvailable`).
 
 ### `-RefreshCatalog`
 
-Forces re-download of vendor indexes into `Content\Temp\OemCatalogs\` (default: refresh when cache older than 7 days).
+Forces re-download of vendor catalogs into `Content\Temp\OemCatalogs\` (default: refresh when cache older than 7 days).
 
-| Vendor | URL | Cache file |
+| Vendor | Pack version source | Also cached |
 | --- | --- | --- |
-| Dell | `https://downloads.dell.com/catalog/CatalogIndexPC.cab` | `OemCatalogs\Dell\CatalogIndexPC.xml` |
-| HP | `https://hpia.hpcloud.hp.com/ref/platformList.cab` | `OemCatalogs\HP\PlatformList.xml` |
-| Lenovo | `https://download.lenovo.com/cdrt/td/catalogv2.xml` | `OemCatalogs\Lenovo\catalogv2.xml` |
+| Dell | `DriverPackCatalog.cab` | `CatalogIndexPC.cab` |
+| HP | `HPClientDriverPackCatalog.cab` | `platformList.cab` |
+| Lenovo | `catalogv2.xml` (SCCM pack nodes) | — |
 
 ## How FFU does it (summary)
 
@@ -171,7 +171,7 @@ Content\Drivers\
 
 ## Implementation order
 
-1. ~~CLI surface: `-CheckStatus` / `-Update*` / Temp OemCatalogs refresh~~ (scaffolded)  
-2. Resolve **driver pack** download URLs from vendor catalogs (enterprise DriverPack-style), not SoftPaq trees  
-3. Version compare (local `version` vs pack catalog) for clearer “new version out” in `-CheckStatus`  
-4. Surface pack sources (if required)
+1. ~~CLI surface: `-CheckStatus` / `-Update*` / Temp OemCatalogs refresh~~  
+2. ~~Version compare (local `version` vs pack catalog) + outline `OnlineVersion`~~  
+3. Auto-fill `downloadLink` from pack catalog on `-Update*` when missing  
+4. Prefer WinPE-type packs for the WinPE model compare (optional)
