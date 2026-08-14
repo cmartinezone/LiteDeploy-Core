@@ -86,7 +86,13 @@ Display names may change without breaking references. IDs must not contain a pas
       <package-id>\
         package.json
         payload\...
-    Drivers\...
+    Drivers\
+      catalog.json
+      schemas\
+        drivers-catalog.schema.json
+      <ManufacturerFriendly>\
+        <ModelOrType>\
+          Extracted\...
   Workflows\
     catalog.json
     schemas\
@@ -97,7 +103,9 @@ Display names may change without breaking references. IDs must not contain a pas
   Engine\Scripts\...
 ```
 
-The initial empty share tree in this repository is [DeploymentShare](../../DeploymentShare). It uses the folder name `WorkFlows`. Catalog JSON in that tree is placeholder-only until ImportOSMedia and workflow publishing exist.
+Driver pack catalog contract: [LITEDEPLOY_DRIVERS_CATALOG.md](LITEDEPLOY_DRIVERS_CATALOG.md).
+
+The initial empty share tree in this repository is [DeploymentShare](../../DeploymentShare). It uses the folder name `WorkFlows`. OS/package catalogs in that tree are placeholder-only until ImportOSMedia and package publishing exist; workflow and drivers catalogs have v1 reference schemas.
 
 Forward-slash paths stored in JSON are repository-relative. Runtime code resolves them against the validated deployment root and normalizes them with `Join-Path`. Catalog paths must not escape the deployment root through `..`, rooted paths, or alternate data streams.
 
