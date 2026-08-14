@@ -8,14 +8,25 @@ LiteDeployManager tool that imports an OEM driver pack into the deployment share
 ## What it does
 
 1. Creates `Content/Drivers/<ManufacturerName>/<Folder>/`
-2. Optionally **downloads** the pack from `-DownloadLink` when `-SourcePath` is omitted  
-3. Populates **`Extracted\`** (FullOS / DISM) from a `.cab`, or from an already-extracted folder  
-4. Creates **`WinPE\`** (empty or from `-WinPESourcePath`)  
+2. Optionally **downloads** the pack from `-DownloadLink` into **`Content\Temp\ImportOEMDrivers\...`**
+3. Extracts CABs under **`Content\Temp\...`**, then promotes into **`Extracted\`**
+4. Creates **`WinPE\`** (empty or from `-WinPESourcePath`)
 5. Upserts the manufacturer / model entry in `catalog.json`
 
-Online OEM *catalog discovery* (list models / newest pack) is still future work. This script imports a known local path or URL.
+Vendor catalog discovery files (Dell/HP/Lenovo index CABs) should also download/extract under `Content\Temp\OemCatalogs\` when that sync is added.
 
-## Download transfer modes
+## Staging vs published layout
+
+```text
+Content\Temp\ImportOEMDrivers\<Mfr>\<ModelId>\
+  Download\pack.cab
+  Extracted\...                    ← temporary expand
+
+Content\Drivers\<Mfr>\<Model>\
+  pack.cab                         ← kept original
+  Extracted\...                    ← published FullOS injection
+  WinPE\...                        ← published WinPE drivers
+```
 
 | Mode | When | Behavior |
 | --- | --- | --- |

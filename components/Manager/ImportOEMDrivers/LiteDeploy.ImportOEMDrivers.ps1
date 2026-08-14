@@ -9,8 +9,11 @@
 
     Local import: pass -SourcePath (.cab / .exe / extracted folder).
     Remote import: pass -DownloadLink without -SourcePath to download first.
-    Downloads default to native APIs (BITS, then Invoke-WebRequest). -UseCurl is
-    optional and prefers Engine\Tools\Curl\curl.exe, then OS curl.exe.
+    Downloads and CAB extracts stage under Content\Temp\ImportOEMDrivers\, then
+    promote into Content\Drivers\...\Extracted. OEM vendor catalogs (future sync)
+    also land under Content\Temp. Downloads default to native APIs (BITS, then
+    Invoke-WebRequest). -UseCurl is optional and prefers Engine\Tools\Curl\curl.exe,
+    then OS curl.exe.
 
 .PARAMETER DeploymentRoot
     Deployment share root (contains Content\Drivers).
@@ -686,7 +689,7 @@ $sourceForImport = $effectiveSourcePath
 
 if ([string]::IsNullOrWhiteSpace($sourceForImport)) {
     $fileName = Get-DownloadFileName -Uri $downloadLinkValue -Format $Format
-    Ensure-EmptyDirectory -Path $downloadStaging -Force:$Force
+    Ensure-EmptyDirectory -Path $downloadStaging -Force
     $downloadTarget = Join-Path $downloadStaging $fileName
     Save-RemoteDriverPack -Uri $downloadLinkValue -Destination $downloadTarget -DeploymentRoot $DeploymentRoot -UseCurl:$UseCurl
     $sourceForImport = $downloadTarget
@@ -781,12 +784,14 @@ Set-Content -LiteralPath $catalogPath -Value $json -Encoding UTF8 -Force
 Write-ImportLog "Catalog updated : $catalogPath" -ForegroundColor Green
 Write-ImportLog "Extracted       : $extractedFolder" -ForegroundColor Green
 Write-ImportLog "WinPE           : $winPeFolder" -ForegroundColor Green
+Write-ImportLog "Temp staging    : $tempWorkRoot" -ForegroundColor DarkCyan
 
 return [pscustomobject]@{
     CatalogPath      = $catalogPath
     ModelFolder      = $modelFolder
     ExtractedPath    = $extractedFolder
     WinPEPath        = $winPeFolder
+    TempWorkRoot     = $tempWorkRoot
     RelativePath     = $relativePath
     ManufacturerId   = $ManufacturerId
     ManufacturerName = $ManufacturerName

@@ -28,6 +28,9 @@ DeploymentShare\
     Packages\
       catalog.json
     Temp\
+      README.md
+      ImportOEMDrivers\     # pack download + CAB extract staging
+      OemCatalogs\          # future vendor catalog CAB/XML cache
     Unattend\
   Engine\
     Scripts\
