@@ -93,6 +93,7 @@ Display names may change without breaking references. IDs must not contain a pas
       <ManufacturerFriendly>\
         <ModelOrType>\
           Extracted\...
+          WinPE\...
   Workflows\
     catalog.json
     schemas\
