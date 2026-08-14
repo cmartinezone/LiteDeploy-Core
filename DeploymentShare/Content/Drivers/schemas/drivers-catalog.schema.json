@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://litedeploy.local/schemas/drivers-catalog.schema.json",
   "title": "LiteDeploy Drivers Catalog",
-  "description": "Manufacturer → model driver packs. Match WMI Manufacturer to manufacturerId and SystemSKU/Type to systemSku. Injection root is path/Extracted.",
+  "description": "Manufacturer → model driver packs. Match WMI Manufacturer to manufacturerId and SystemSKU/Type to systemSku. FullOS injection is path/Extracted. Manufacturer WinPE is a model with modelId winpe (role winpe).",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "manufacturers"],
@@ -76,10 +76,16 @@
         },
         "systemSku": {
           "type": "array",
-          "description": "Hardware match keys: Dell SystemSKU, Lenovo Machine Type/MTM, HP BaseBoardProduct, etc.",
+          "description": "Hardware match keys: Dell SystemSKU, Lenovo Machine Type/MTM, HP BaseBoardProduct, etc. WinPE model uses [\"WINPE\"].",
           "minItems": 1,
           "items": { "type": "string", "minLength": 1 },
           "uniqueItems": true
+        },
+        "role": {
+          "type": "string",
+          "enum": ["fullOs", "winpe"],
+          "default": "fullOs",
+          "description": "fullOs = Setup.exe pack under path/Extracted. winpe = manufacturer WinPE model (folder WinPE, modelId winpe)."
         },
         "version": {
           "type": "string",
@@ -108,7 +114,7 @@
         "path": {
           "type": "string",
           "minLength": 1,
-          "description": "Repository-relative model folder. FullOS injects from path/Extracted; WinPE loads from path/WinPE."
+          "description": "Repository-relative model folder. Drivers inject from path/Extracted (FullOS or WinPE model)."
         }
       }
     }

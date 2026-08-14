@@ -2,7 +2,7 @@
 
 LiteDeployManager tool that refreshes OEM vendor indexes, compares them to your share’s `Content/Drivers/catalog.json`, and can re-download **driver packs** into each model’s `Extracted\` folder.
 
-Unlike FFU, we do **not** build a `DriverMapping.json` matching repo or harvest individual SoftPaqs. The runtime resolves the model folder (`catalog.json` + SKU / UI), then **`Setup.exe` receives that directory path as a switch**. Content is the extracted pack under `Extracted\`.
+Unlike FFU, we do **not** build a `DriverMapping.json` matching repo or harvest individual SoftPaqs. The runtime resolves the FullOS model folder (`catalog.json` + SKU / UI), then **`Setup.exe` receives that directory path as a switch**. WinPE drivers are a separate catalog **model** (`modelId: winpe`) under the manufacturer: `WinPE\Extracted\`.
 
 **Script:** `LiteDeploy.SyncOEMDrivers.ps1`  
 **Design:** [LITEDEPLOY_OEM_CATALOG_SYNC.md](../../../docs/architecture/LITEDEPLOY_OEM_CATALOG_SYNC.md)
@@ -49,7 +49,7 @@ Optional allow-list CSV to surface **new** vendor SKUs not yet in your catalog:
 .\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -SystemSku "0C09" -Force
 ```
 
-Updates call `ImportOEMDrivers` with the model’s stored `downloadLink` → download pack → extract into `Extracted\` (optional `WinPE\`). No FFU-style mapping file is written.
+Updates call `ImportOEMDrivers` with the model’s stored `downloadLink` → download pack → extract into FullOS model `Extracted\`. The manufacturer **WinPE model** is separate. No FFU-style mapping file is written.
 
 ## Vendor index cache
 

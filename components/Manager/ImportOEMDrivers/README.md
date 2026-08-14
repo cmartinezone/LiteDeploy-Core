@@ -7,12 +7,13 @@ LiteDeployManager tool that imports an OEM driver pack into the deployment share
 
 ## What it does
 
-1. Creates `Content/Drivers/<ManufacturerName>/<Folder>/`
-2. Optionally **downloads** the pack from `-DownloadLink` into **`Content\Temp\ImportOEMDrivers\...`**
-3. Extracts CABs under **`Content\Temp\...`**, then promotes into **`Extracted\`**
-4. Creates **`WinPE\`** (empty or from `-WinPESourcePath`)
-5. Upserts the manufacturer / model entry in `catalog.json`
-6. Or registers many supported models from a **CSV** (`-ModelsCsvPath`)
+1. Creates `Content/Drivers/<ManufacturerName>/<Folder>/` for the FullOS model
+2. Ensures the manufacturer **WinPE model** at `Content/Drivers/<ManufacturerName>/WinPE/` (`modelId: winpe`)
+3. Optionally **downloads** the pack from `-DownloadLink` into **`Content\Temp\ImportOEMDrivers\...`**
+4. Extracts CABs under **`Content\Temp\...`**, then promotes into model **`Extracted\`**
+5. Optionally fills WinPE model `Extracted\` from `-WinPESourcePath`
+6. Upserts manufacturer / model entries in `catalog.json` (including the WinPE model)
+7. Or registers many supported FullOS models from a **CSV** (`-ModelsCsvPath`) — still ensures the WinPE model
 
 Vendor catalog discovery (Dell `CatalogIndexPC`, HP `platformList`, Lenovo/Surface) is **not implemented yet**. Design (learned from FFU, LiteDeploy-owned): [LITEDEPLOY_OEM_CATALOG_SYNC.md](../../../docs/architecture/LITEDEPLOY_OEM_CATALOG_SYNC.md). Indexes will land under `Content\Temp\OemCatalogs\`.
 
@@ -51,7 +52,7 @@ OptiPlex 7010,05A1;05A2
   -Format cab
 ```
 
-Creates empty `Extracted\` / `WinPE\` folders per model and upserts `catalog.json`. Import packs later with the single-model parameters.
+Creates empty FullOS `Extracted\` folders, ensures the manufacturer **WinPE model** (`WinPE\Extracted\`, catalog `modelId: winpe`), and upserts `catalog.json`.
 
 ## Staging vs published layout
 
@@ -60,10 +61,12 @@ Content\Temp\ImportOEMDrivers\<Mfr>\<ModelId>\
   Download\pack.cab
   Extracted\...                    ← temporary expand
 
-Content\Drivers\<Mfr>\<Model>\
-  pack.cab                         ← kept original
-  Extracted\...                    ← published FullOS injection
-  WinPE\...                        ← published WinPE drivers
+Content\Drivers\<Mfr>\
+  WinPE\                           ← WinPE model (role winpe)
+    Extracted\...
+  <Model>\                         ← FullOS model (role fullOs)
+    pack.cab
+    Extracted\...
 ```
 
 ## Download transfer modes
@@ -96,4 +99,4 @@ Default never calls curl. `-UseCurl` fails closed if no curl binary is found.
 
 - `.exe` packs are stored in the model folder; populate `Extracted\` by passing an extracted folder as `-SourcePath`.
 - `.cab` packs expand under `Content\Temp`, then promote to `Extracted\`.
-- Runtime matches `manufacturerId` + `systemSku`, then uses `path\Extracted` or `path\WinPE`.
+- Runtime: FullOS `manufacturerId` + `systemSku` → model `path\Extracted` for Setup; WinPE uses the manufacturer **WinPE model** (`modelId: winpe`) → `path\Extracted`.
