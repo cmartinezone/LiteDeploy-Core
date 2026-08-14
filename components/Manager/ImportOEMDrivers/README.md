@@ -8,11 +8,21 @@ LiteDeployManager tool that imports an OEM driver pack into the deployment share
 ## What it does
 
 1. Creates `Content/Drivers/<ManufacturerName>/<Folder>/`
-2. Populates **`Extracted\`** (FullOS / DISM) from a `.cab`, or from an already-extracted folder  
-3. Creates **`WinPE\`** (empty or from `-WinPESourcePath`)  
-4. Upserts the manufacturer / model entry in `catalog.json` (`manufacturerId`, `systemSku`, `version`, dates, `format`, optional `downloadLink`)
+2. Optionally **downloads** the pack from `-DownloadLink` when `-SourcePath` is omitted  
+3. Populates **`Extracted\`** (FullOS / DISM) from a `.cab`, or from an already-extracted folder  
+4. Creates **`WinPE\`** (empty or from `-WinPESourcePath`)  
+5. Upserts the manufacturer / model entry in `catalog.json`
 
-Online OEM catalog download/update is **not** in this script yet. Pass a local pack; a future sync can learn vendor catalog patterns (e.g. from FFU) while keeping this LiteDeploy-owned importer.
+Online OEM *catalog discovery* (list models / newest pack) is still future work. This script imports a known local path or URL.
+
+## Download transfer modes
+
+| Mode | When | Behavior |
+| --- | --- | --- |
+| **Native (default)** | `-DownloadLink` without `-UseCurl` | `Start-BitsTransfer`, then `Invoke-WebRequest` |
+| **Curl (optional)** | `-DownloadLink -UseCurl` | `Engine\Tools\Curl\curl.exe` if present, else `Tools\Curl\curl.exe`, else OS `curl.exe` |
+
+Default never calls curl. `-UseCurl` fails closed if no curl binary is found.
 
 ## Layout written
 
@@ -34,12 +44,13 @@ Content/Drivers/Dell/Latitude 7450/
 | `-ModelName` | yes | Display name |
 | `-SystemSku` | yes | One or more SKU / Type keys |
 | `-Version` | yes | Pack version label |
-| `-SourcePath` | yes | `.cab`, `.exe`, or extracted folder |
-| `-Format` | if folder source | `exe` \| `cab` (auto from file extension) |
+| `-SourcePath` | for local import | `.cab`, `.exe`, or extracted folder |
+| `-DownloadLink` | for remote import | Vendor URL (also stored in catalog) |
+| `-Format` | if folder source / needed | `exe` \| `cab` (auto from file extension) |
 | `-ReleaseDate` | no | `YYYY-MM-DD` (default today) |
-| `-DownloadLink` | no | Vendor URL |
 | `-WinPESourcePath` | no | Folder copied into `WinPE\` |
 | `-FolderName` | no | Defaults to `ModelName` |
+| `-UseCurl` | no | Optional curl transfer (Tools curl, then OS curl) |
 | `-Force` | no | Replace existing model content / catalog row |
 
 ## Examples
@@ -72,6 +83,31 @@ Content/Drivers/Dell/Latitude 7450/
   -WinPESourcePath "C:\Temp\x1_winpe" `
   -FolderName "21KC" `
   -Force
+
+# Download with native APIs (default), then import
+.\LiteDeploy.ImportOEMDrivers.ps1 `
+  -DeploymentRoot "D:\DeploymentShare" `
+  -ManufacturerId "Dell Inc." `
+  -ManufacturerName "Dell" `
+  -ModelId "latitude-7450" `
+  -ModelName "Latitude 7450" `
+  -SystemSku "0C09" `
+  -Version "2026.01" `
+  -Format cab `
+  -DownloadLink "https://downloads.dell.com/.../Latitude_7450.cab"
+
+# Optional: use Tools\Curl (or OS curl) instead of native APIs
+.\LiteDeploy.ImportOEMDrivers.ps1 `
+  -DeploymentRoot "D:\DeploymentShare" `
+  -ManufacturerId "Dell Inc." `
+  -ManufacturerName "Dell" `
+  -ModelId "latitude-7450" `
+  -ModelName "Latitude 7450" `
+  -SystemSku "0C09" `
+  -Version "2026.01" `
+  -Format cab `
+  -DownloadLink "https://downloads.dell.com/.../Latitude_7450.cab" `
+  -UseCurl
 ```
 
 ## Notes

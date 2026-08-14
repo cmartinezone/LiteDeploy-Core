@@ -32,6 +32,7 @@ DeploymentShare\
   Engine\
     Scripts\
     Tools\
+      Curl\                 # optional curl.exe for ImportOEMDrivers -UseCurl
   WorkFlows\
     catalog.json
     schemas\

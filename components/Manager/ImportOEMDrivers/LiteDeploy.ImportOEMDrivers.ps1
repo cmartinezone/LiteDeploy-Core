@@ -630,15 +630,16 @@ $importedDate = (Get-Date).ToString("yyyy-MM-dd")
 $downloadLinkValue = if ([string]::IsNullOrWhiteSpace($DownloadLink)) { "" } else { $DownloadLink.Trim() }
 $effectiveSourcePath = $SourcePath
 
-# Remote import: download when SourcePath is omitted and DownloadLink is set.
-$didDownload = $false
-if ([string]::IsNullOrWhiteSpace($effectiveSourcePath)) {
-    if ([string]::IsNullOrWhiteSpace($downloadLinkValue)) {
-        throw "Provide -SourcePath for local import, or -DownloadLink to download the pack."
-    }
-    if ($PSCmdlet.ParameterSetName -eq "LocalSource" -and -not $PSBoundParameters.ContainsKey("DownloadLink")) {
-        throw "Provide -SourcePath for local import, or -DownloadLink to download the pack."
-    }
+if ([string]::IsNullOrWhiteSpace($effectiveSourcePath) -and [string]::IsNullOrWhiteSpace($downloadLinkValue)) {
+    throw "Provide -SourcePath for local import, or -DownloadLink to download the pack."
+}
+
+if ($UseCurl -and [string]::IsNullOrWhiteSpace($downloadLinkValue)) {
+    throw "-UseCurl requires -DownloadLink."
+}
+
+if ($UseCurl -and -not [string]::IsNullOrWhiteSpace($effectiveSourcePath)) {
+    throw "-UseCurl applies only when downloading (-DownloadLink without -SourcePath)."
 }
 
 if (-not [string]::IsNullOrWhiteSpace($WinPESourcePath) -and -not (Test-Path -LiteralPath $WinPESourcePath -PathType Container)) {
@@ -681,7 +682,6 @@ if ([string]::IsNullOrWhiteSpace($effectiveSourcePath)) {
     $downloadTarget = Join-Path $downloadStaging $fileName
     Save-RemoteDriverPack -Uri $downloadLinkValue -Destination $downloadTarget -DeploymentRoot $DeploymentRoot -UseCurl:$UseCurl
     $effectiveSourcePath = $downloadTarget
-    $didDownload = $true
     Write-ImportLog "Downloaded pack : $effectiveSourcePath" -ForegroundColor Green
 }
 
@@ -730,8 +730,8 @@ $modelEntry = [ordered]@{
     enabled      = [bool]$Enabled
     path         = $relativePath
 }
-if (-not [string]::IsNullOrWhiteSpace($DownloadLink)) {
-    $modelEntry["downloadLink"] = $DownloadLink.Trim()
+if (-not [string]::IsNullOrWhiteSpace($downloadLinkValue)) {
+    $modelEntry["downloadLink"] = $downloadLinkValue
 }
 
 $catalog = Get-OrCreateDriversCatalog -CatalogPath $catalogPath
@@ -764,4 +764,6 @@ return [pscustomobject]@{
     SystemSku        = $skuList
     Version          = $Version
     Format           = $Format
+    DownloadLink     = $downloadLinkValue
+    UsedCurl         = [bool]$UseCurl
 }
