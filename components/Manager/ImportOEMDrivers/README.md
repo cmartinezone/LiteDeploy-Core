@@ -15,7 +15,7 @@ LiteDeployManager tool that imports an OEM driver pack into the deployment share
 6. Upserts manufacturer / model entries in `catalog.json` (including the WinPE model)
 7. Or registers many supported FullOS models from a **CSV** (`-ModelsCsvPath`) — still ensures the WinPE model
 
-Vendor catalog discovery (Dell `CatalogIndexPC`, HP `platformList`, Lenovo/Surface) is **not implemented yet**. Design (learned from FFU, LiteDeploy-owned): [LITEDEPLOY_OEM_CATALOG_SYNC.md](../../../docs/architecture/LITEDEPLOY_OEM_CATALOG_SYNC.md). Indexes will land under `Content\Temp\OemCatalogs\`.
+Online vendor **index** sync is **Dell / HP / Lenovo only** (`SyncOEMDrivers` → `Content\Temp\OemCatalogs\`). Design: [LITEDEPLOY_OEM_CATALOG_SYNC.md](../../../docs/architecture/LITEDEPLOY_OEM_CATALOG_SYNC.md). Surface is out of scope for now.
 
 ## Supported-models CSV
 

@@ -445,7 +445,6 @@ function Resolve-VendorFamily {
     if ($blob -match 'dell') { return "Dell" }
     if ($blob -match 'lenovo') { return "Lenovo" }
     if ($blob -match '\bhp\b|hewlett') { return "HP" }
-    if ($blob -match 'microsoft|surface') { return "Surface" }
     return $ManufacturerName
 }
 

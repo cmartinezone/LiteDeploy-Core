@@ -14,6 +14,17 @@ LiteDeploy does **not** import FFU code. We reuse vendor *index URLs and SKU mat
 
 So: learn *where* catalogs live from FFU; **do not** copy their per-driver download + mapping model. Our engine downloads the pack, extracts it into `Extracted\`, upserts `catalog.json`, and at deploy time the runtime hands **that model directory path** to Setup.exe.
 
+## Supported OEMs (online catalog)
+
+| OEM | Online catalog index | Status |
+| --- | --- | --- |
+| **Dell** | `CatalogIndexPC.cab` | Supported |
+| **HP** | HPIA `platformList.cab` | Supported |
+| **Lenovo** | `catalogv2.xml` | Supported |
+| Surface / others | — | **Out of scope** for now |
+
+Manual import (`ImportOEMDrivers` local/`-DownloadLink`/CSV) still works for any manufacturer folder you create; only **online index sync** is limited to Dell, HP, and Lenovo.
+
 ## Status
 
 | Layer | LiteDeploy today |
@@ -115,7 +126,8 @@ They prefer **latest individual drivers** (SupportAssist / HPIA / System Update 
 | **Dell** (server path) | `Catalog.cab` | Same | Model name (legacy) | Different pathway |
 | **HP** | `https://hpia.hpcloud.hp.com/ref/platformList.cab` → `PlatformList.xml` | ~7 days | `MS_SystemInformation.BaseboardProduct` (`SystemId`) | Per SystemID: `https://hpia.hpcloud.hp.com/ref/<SystemID>/<release>.cab` → XML → SoftPaq EXEs |
 | **Lenovo** | **PSREF** search API (not only `catalogv2.xml`) | Live query | Machine Type (4-char MTM); `SystemProductName` / model | Model catalog XML → package XMLs → EXE extract. FFU notes `catalogv2.xml` misses many EDU/consumer SKUs (300w/500w/…) |
-| **Microsoft Surface** | Scrape Download Center model index + per-model page | Cached JSON | Friendly `Model` string | MSI/ZIP for Win10/Win11 |
+
+FFU also scrapes **Surface** Download Center pages. LiteDeploy does **not** — online catalog support is **Dell, HP, and Lenovo only**.
 
 ### FFU artifacts — what we take / skip
 
@@ -155,12 +167,12 @@ Content\Drivers\
 | Dell | SystemSKU |
 | HP | BaseBoardProduct |
 | Lenovo | Machine Type (MTM first 4) |
-| Surface / Microsoft | Model name (and any SKU we store) |
 
 `manufacturerId` remains exact WMI `Win32_ComputerSystem.Manufacturer` (e.g. `Dell Inc.`).
 
 ## What we deliberately do differently
 
+- **OEM online indexes: Dell / HP / Lenovo only** — no Surface catalog sync for now  
 - **No `DriverMapping.json`** — resolve model dir once, pass path to **`Setup.exe`**; catalog only stores `manufacturerId` / `systemSku` / `path`  
 - **Driver packs into `Extracted\`** — Setup (or DISM) consumes that folder, not a SoftPaq matching repository  
 - **CSV as allow-list** — internal supported models stay authoritative; OEM indexes are discovery  
@@ -171,7 +183,6 @@ Content\Drivers\
 
 ## Implementation order
 
-1. ~~CLI surface: `-CheckStatus` / `-Update*` / Temp OemCatalogs refresh~~ (scaffolded)  
-2. Resolve **driver pack** download URLs from vendor catalogs (enterprise DriverPack-style), not SoftPaq trees  
+1. ~~CLI surface: `-CheckStatus` / `-Update*` / Temp OemCatalogs refresh (Dell/HP/Lenovo)~~ (scaffolded)  
+2. Resolve **driver pack** download URLs from Dell/HP/Lenovo catalogs (enterprise DriverPack-style), not SoftPaq trees  
 3. Version compare (local `version` vs pack catalog) for clearer “new version out” in `-CheckStatus`  
-4. Surface pack sources (if required)

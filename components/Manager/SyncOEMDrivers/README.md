@@ -7,6 +7,10 @@ Unlike FFU, we do **not** build a `DriverMapping.json` matching repo or harvest 
 **Script:** `LiteDeploy.SyncOEMDrivers.ps1`  
 **Design:** [LITEDEPLOY_OEM_CATALOG_SYNC.md](../../../docs/architecture/LITEDEPLOY_OEM_CATALOG_SYNC.md)
 
+## Supported OEMs (online catalog)
+
+**Dell, HP, Lenovo only.** Surface and other OEMs are out of scope for index sync.
+
 ## Modes
 
 ### Check status (shell table)
@@ -60,3 +64,5 @@ Downloaded under `Content\Temp\OemCatalogs\` (refresh if older than 7 days, or p
 | Dell | `CatalogIndexPC.cab` |
 | HP | HPIA `platformList.cab` |
 | Lenovo | `catalogv2.xml` |
+
+No Surface / Microsoft Download Center sync.
