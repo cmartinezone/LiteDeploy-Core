@@ -88,4 +88,4 @@ Each model carries its own `WinPE` pack for that manufacturer’s hardware (not 
 | Online download during Media | `Drivers.AutoOnlineDownloadOnMedia` |
 | INF-level inventory | Inside `Extracted/` and `WinPE/` only |
 | Import / Driver Manager | [`ImportOEMDrivers`](../../components/Manager/ImportOEMDrivers/) — downloads/extracts under `Content\Temp`, publishes to `Content\Drivers`; also `-ModelsCsvPath` to register manufacturer-supported models (`Model`,`SystemSku` / `SkuId`) without a pack |
-| OEM vendor catalog sync | [`SyncOEMDrivers`](../../components/Manager/SyncOEMDrivers/) — `-CheckStatus` table, `-UpdateAll` / `-Model` / `-SystemSku`; indexes in `Content\Temp\OemCatalogs\` ([design](./LITEDEPLOY_OEM_CATALOG_SYNC.md)) |
+| OEM vendor catalog sync | [`SyncOEMDrivers`](../../components/Manager/SyncOEMDrivers/) — `-CheckStatus` table, `-UpdateAll` / `-Model` / `-SystemSku`; indexes in `Content\Temp\OemCatalogs\`; updates download **packs** into `Extracted\` (no FFU `DriverMapping.json`) ([design](./LITEDEPLOY_OEM_CATALOG_SYNC.md)) |

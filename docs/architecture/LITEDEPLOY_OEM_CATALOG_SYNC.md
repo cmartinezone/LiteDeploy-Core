@@ -1,7 +1,18 @@
 # LiteDeploy OEM catalog sync (learned from FFU)
 
 **Reference only:** [rbalsleyMSFT/FFU](https://github.com/rbalsleyMSFT/FFU)  
-LiteDeploy does **not** import FFU code. We reuse the *vendor sources and match keys*, then own staging under `Content\Temp\OemCatalogs\` and publish into `Content\Drivers\` + `catalog.json`.
+LiteDeploy does **not** import FFU code. We reuse vendor *index URLs and SKU match keys* only.
+
+## LiteDeploy vs FFU (important)
+
+| | **FFU** | **LiteDeploy** |
+| --- | --- | --- |
+| What they download | Many **individual** latest drivers (SoftPaq / PDK EXE sets) | One **driver pack** per model (CAB/EXE) |
+| On disk | Loose INF tree under `Drivers\Make\Model` (+ optional WIM) | Pack → **`Extracted\`** (FullOS) and optional **`WinPE\`** |
+| How deploy matches hardware | Separate **`DriverMapping.json`** “matching repo” (SystemId / MachineType → folder) | **`catalog.json`** only: `manufacturerId` + `systemSku[]` → `path\Extracted` |
+| Mapping file like FFU? | Yes | **No** — we will not create a DriverMapping-style matching repo |
+
+So: learn *where* catalogs live from FFU; **do not** copy their per-driver download + mapping model. Our engine downloads the pack, extracts it into `Extracted\`, and upserts the model row in `catalog.json`.
 
 ## Status
 
@@ -74,7 +85,7 @@ Re-download packs into the deployment share for matching catalog rows that have 
 
 Optional: `-ManufacturerName Dell` to scope UpdateAll. `-Force` replaces existing Extracted content. `-WhatIf` supported.
 
-**v1 limit:** Update refreshes packs via stored `downloadLink` (admin URL / enterprise pack). Resolving “latest” automatically from Dell PDK / HPIA SoftPaqs (FFU-style many-EXE) is a later phase — `-CheckStatus` still shows whether the SKU remains in the vendor **index**.
+**Update always means:** download the **driver pack** → extract into that model’s **`Extracted\`** (via `ImportOEMDrivers`). It does **not** build an FFU-style individual-driver matching repo. Vendor indexes are only for `-CheckStatus` discovery / SKU presence (and later resolving a pack URL into `downloadLink`).
 
 ### `-RefreshCatalog`
 
@@ -106,15 +117,16 @@ They prefer **latest individual drivers** (SupportAssist / HPIA / System Update 
 | **Lenovo** | **PSREF** search API (not only `catalogv2.xml`) | Live query | Machine Type (4-char MTM); `SystemProductName` / model | Model catalog XML → package XMLs → EXE extract. FFU notes `catalogv2.xml` misses many EDU/consumer SKUs (300w/500w/…) |
 | **Microsoft Surface** | Scrape Download Center model index + per-model page | Cached JSON | Friendly `Model` string | MSI/ZIP for Win10/Win11 |
 
-### FFU artifacts (concepts → LiteDeploy)
+### FFU artifacts — what we take / skip
 
-| FFU | LiteDeploy analogue |
+| FFU | LiteDeploy |
 | --- | --- |
-| `Drivers.json` (selected models to download) | Supported-models CSV and/or future selection list |
-| Vendor CAB/XML under `Drivers\<Make>\` | `Content\Temp\OemCatalogs\<Vendor>\` |
-| `Drivers\<Make>\<Model>\` extracted INF tree | `Content\Drivers\<ManufacturerName>\<Folder>\Extracted\` |
-| `DriverMapping.json` (`SystemId` / `MachineType`) | `Content\Drivers\catalog.json` (`systemSku[]`) |
-| BITS + retry | Existing ImportOEMDrivers native BITS → IWR (`-UseCurl` optional) |
+| Vendor index CAB/XML URLs | **Take** → cache under `Content\Temp\OemCatalogs\<Vendor>\` |
+| SystemId / MachineType match keys | **Take** → store as `systemSku[]` in `catalog.json` |
+| `Drivers.json` selection list | Close to our supported-models CSV |
+| Individual SoftPaq/PDK EXE harvest | **Skip** |
+| `DriverMapping.json` matching repo | **Skip** — use `catalog.json` + `Extracted\` only |
+| BITS download | Already in `ImportOEMDrivers` |
 
 ## LiteDeploy layout
 
@@ -146,17 +158,17 @@ Content\Drivers\
 
 ## What we deliberately do differently
 
-- **Own catalog contract** — LiteDeploy `catalog.json` v1, not FFU `DriverMapping.json`  
-- **Optional enterprise CAB** — still allow `-DownloadLink` / DriverPack CABs when admins want them  
-- **CSV as allow-list** — internal supported models stay authoritative; OEM catalogs are discovery + URLs  
+- **Driver packs into `Extracted\`** — not a loose per-INF matching repository  
+- **No `DriverMapping.json`** — runtime uses `catalog.json` → `path\Extracted` / `path\WinPE`  
+- **CSV as allow-list** — internal supported models stay authoritative; OEM indexes are discovery  
 - **CheckStatus table** — share vs vendor index in the shell before updating  
-- **Update scoped** — `-UpdateAll`, `-Model`, or `-SystemSku`  
-- **No Edge/PSREF cookie hacks in v1** — Lenovo uses `catalogv2.xml` first; PSREF only if we later need missing SKUs  
-- **Reference only** — learn patterns; rewrite LiteDeploy-owned PowerShell
+- **Update scoped** — `-UpdateAll`, `-Model`, or `-SystemSku` (always pack → Extracted)  
+- **No Edge/PSREF cookie hacks in v1** — Lenovo uses `catalogv2.xml` first  
+- **Reference only** — learn catalog URLs from FFU; rewrite LiteDeploy-owned PowerShell
 
 ## Implementation order
 
 1. ~~CLI surface: `-CheckStatus` / `-Update*` / Temp OemCatalogs refresh~~ (scaffolded)  
-2. Dell index parse completeness + DriverPackCatalog version compare (true “new version”)  
-3. HP SoftPaq / Lenovo package resolve for Update without manual `downloadLink`  
-4. Surface index (if required)
+2. Resolve **driver pack** download URLs from vendor catalogs (enterprise DriverPack-style), not SoftPaq trees  
+3. Version compare (local `version` vs pack catalog) for clearer “new version out” in `-CheckStatus`  
+4. Surface pack sources (if required)
