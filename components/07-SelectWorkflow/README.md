@@ -205,7 +205,7 @@ Recommended WinPE optional components:
 - WinPE-PowerShell
 - WinPE-StorageWMI
 
-The primary window currently uses a fixed `1024 × 820` WPF size with `ResizeMode="NoResize"`. Unlike the PreCheck UI, it does not yet calculate its size from the physical screen or wrap its design surface in an outer `Viewbox`. It can therefore be clipped at low resolution or high DPI.
+The primary window uses `Get-LiteDeployUiWindowSize` from [UiHost](../04-UiHost) for adaptive sizing (same Light/Dark palette and button styles as PreCheck). A full Viewbox design-surface wrap can still be added later for very low resolutions.
 
 The folder picker uses a fixed `440 × 480` window.
 
