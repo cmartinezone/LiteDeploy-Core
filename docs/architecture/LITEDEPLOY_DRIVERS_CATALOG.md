@@ -16,8 +16,10 @@ Content/Drivers/catalog.json
         ├── name            (friendly, e.g. "Dell")
         └── models[]
               ├── systemSku[] / version / dates / format
-              ├── downloadLink? 
-              └── path → .../Extracted/   (DISM injection root)
+              ├── downloadLink?
+              └── path
+                    ├── Extracted/   ← FullOS / offline injection
+                    └── WinPE/       ← WinPE storage/network (per model)
 ```
 
 ## Files
@@ -56,17 +58,26 @@ Content/Drivers/catalog.json
 ```text
 Content/Drivers/<FriendlyName>/<ModelOrType>/
   <original>.cab | <original>.exe     ← optional keep
-  Extracted/                          ← runtime injection root
+  Extracted/                          ← FullOS / DISM injection
+    *.inf / driver tree
+  WinPE/                              ← WinPE boot drivers (storage, NIC, etc.)
     *.inf / driver tree
 ```
 
-`path` points at the model folder. Apply drivers from `Join-Path $path 'Extracted'`.
+`path` points at the model folder.
+
+| Consumer | Root |
+| --- | --- |
+| FullOS / offline apply | `Join-Path $path 'Extracted'` |
+| WinPE (Boot.wim / runtime) | `Join-Path $path 'WinPE'` |
+
+Each model carries its own `WinPE` pack for that manufacturer’s hardware (not a single global WinPE folder).
 
 ## Runtime match
 
 1. Read WMI `Manufacturer` → equal `manufacturerId` (trim, case-insensitive).  
 2. Read SystemSKU / Machine Type / BaseBoardProduct → any value in `systemSku`.  
-3. Use that model’s `path\Extracted`.  
+3. Use that model’s `path\Extracted` (FullOS) and/or `path\WinPE` (WinPE).  
 4. If no match → in-box / manual selection (existing SelectWorkflow policy).
 
 ## Intentionally out of scope here
@@ -75,5 +86,5 @@ Content/Drivers/<FriendlyName>/<ModelOrType>/
 | --- | --- |
 | BootConfig auto-detect / manual pick | `ComputerSetup` / `Drivers` in BootConfig |
 | Online download during Media | `Drivers.AutoOnlineDownloadOnMedia` |
-| INF-level inventory | Inside `Extracted/` only |
-| Import tool | Future Manager importer (like ImportOSMedia) |
+| INF-level inventory | Inside `Extracted/` and `WinPE/` only |
+| Import / Driver Manager | Future Manager tool (learn vendor catalogs from FFU; LiteDeploy-owned) |

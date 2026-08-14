@@ -32,7 +32,7 @@ LiteDeploy engine and Manager/Runtime work integrates on **`dev`**, not on `main
 - Structured PreCheck / SelectWorkflow return contracts  
 - `ComputerSetup.DriveSelection` / `ComputerSetup.ImageEngine` on BootConfig  
 - Workflow v1 schema + Standard / Intune examples under `DeploymentShare/WorkFlows`
-- Drivers catalog v1 (`manufacturerId` / `systemSku` / `Extracted`) under `DeploymentShare/Content/Drivers`
+- Drivers catalog v1 (`manufacturerId` / `systemSku` / `Extracted` + `WinPE`) under `DeploymentShare/Content/Drivers`
 
 ## Related
 
