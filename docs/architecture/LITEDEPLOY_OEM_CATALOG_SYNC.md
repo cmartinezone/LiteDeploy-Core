@@ -158,8 +158,8 @@ Content\Drivers\
 
 ## What we deliberately do differently
 
-- **Driver packs into `Extracted\`** — not a loose per-INF matching repository  
-- **No `DriverMapping.json`** — runtime uses `catalog.json` → `path\Extracted` / `path\WinPE`  
+- **No `DriverMapping.json`** — resolve model dir once, pass path to **`Setup.exe`**; catalog only stores `manufacturerId` / `systemSku` / `path`  
+- **Driver packs into `Extracted\`** — Setup (or DISM) consumes that folder, not a SoftPaq matching repository  
 - **CSV as allow-list** — internal supported models stay authoritative; OEM indexes are discovery  
 - **CheckStatus table** — share vs vendor index in the shell before updating  
 - **Update scoped** — `-UpdateAll`, `-Model`, or `-SystemSku` (always pack → Extracted)  

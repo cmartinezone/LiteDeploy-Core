@@ -2,7 +2,7 @@
 
 LiteDeployManager tool that refreshes OEM vendor indexes, compares them to your share’s `Content/Drivers/catalog.json`, and can re-download **driver packs** into each model’s `Extracted\` folder.
 
-Unlike FFU, we do **not** build a `DriverMapping.json` matching repo or harvest individual SoftPaqs. Match keys live in `catalog.json`; content is the extracted pack.
+Unlike FFU, we do **not** build a `DriverMapping.json` matching repo or harvest individual SoftPaqs. The runtime resolves the model folder (`catalog.json` + SKU / UI), then **`Setup.exe` receives that directory path as a switch**. Content is the extracted pack under `Extracted\`.
 
 **Script:** `LiteDeploy.SyncOEMDrivers.ps1`  
 **Design:** [LITEDEPLOY_OEM_CATALOG_SYNC.md](../../../docs/architecture/LITEDEPLOY_OEM_CATALOG_SYNC.md)
