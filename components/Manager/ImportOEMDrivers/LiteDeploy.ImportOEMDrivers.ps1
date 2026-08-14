@@ -827,14 +827,6 @@ if ([string]::IsNullOrWhiteSpace($FolderName)) {
 }
 $FolderName = $FolderName.Trim()
 
-if ([string]::IsNullOrWhiteSpace($ReleaseDate)) {
-    $ReleaseDate = (Get-Date).ToString("yyyy-MM-dd")
-}
-if (-not (Test-IsoDate $ReleaseDate)) {
-    throw "ReleaseDate must be YYYY-MM-DD. Got: $ReleaseDate"
-}
-$importedDate = (Get-Date).ToString("yyyy-MM-dd")
-
 $downloadLinkValue = if ([string]::IsNullOrWhiteSpace($DownloadLink)) { "" } else { $DownloadLink.Trim() }
 $effectiveSourcePath = $SourcePath
 
