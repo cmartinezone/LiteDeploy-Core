@@ -108,7 +108,7 @@
         "path": {
           "type": "string",
           "minLength": 1,
-          "description": "Repository-relative model folder. FullOS injects from path/Extracted; WinPE loads from path/WinPE."
+          "description": "Repository-relative model folder. FullOS injects from path/Extracted. WinPE drivers live at Content/Drivers/<manufacturerName>/WinPE (manufacturer root), not under the model."
         }
       }
     }

@@ -3,9 +3,10 @@
     Imports an OEM driver pack into the LiteDeploy drivers catalog and share layout.
 
 .DESCRIPTION
-    LiteDeployManager tool. Places FullOS drivers under Extracted\ and optional WinPE
-    drivers under WinPE\, then upserts Content\Drivers\catalog.json using the v1
-    drivers catalog contract (manufacturerId from WMI, systemSku, format, dates).
+    LiteDeployManager tool. Places FullOS drivers under <Model>\Extracted\ and optional
+    WinPE drivers under <ManufacturerName>\WinPE\ (manufacturer root), then upserts
+    Content\Drivers\catalog.json using the v1 drivers catalog contract
+    (manufacturerId from WMI, systemSku, format, dates).
 
     Local import: pass -SourcePath (.cab / .exe / extracted folder).
     Remote import: pass -DownloadLink without -SourcePath to download first.
@@ -49,7 +50,8 @@
     Local .cab, .exe, or folder of extracted FullOS drivers. Optional when -DownloadLink is set for remote import.
 
 .PARAMETER WinPESourcePath
-    Optional folder of WinPE storage/NIC drivers to copy into WinPE\.
+    Optional folder of WinPE storage/NIC drivers to copy into
+    Content\Drivers\<ManufacturerName>\WinPE\ (shared for the manufacturer).
 
 .PARAMETER FolderName
     Model folder leaf under Content\Drivers\<ManufacturerName>\. Defaults to ModelName.
@@ -72,7 +74,7 @@
     CSV field delimiter. Default is comma (,).
 
 .PARAMETER Force
-    Overwrite existing Extracted\ / WinPE\ content and replace catalog model entry fields.
+    Overwrite existing model Extracted\ and/or manufacturer WinPE\ content and replace catalog model entry fields.
 
 .EXAMPLE
     .\LiteDeploy.ImportOEMDrivers.ps1 `
@@ -706,9 +708,10 @@ function Import-SupportedModelsFromCsv {
         $skuParts = @($skuRaw -split '[,;|]' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
         $skuList = Get-NormalizedSkuList -Values $skuParts
 
-        $modelFolder = Join-Path $driversRoot (Join-Path $ManufacturerName $folderName)
+        $manufacturerFolder = Join-Path $driversRoot $ManufacturerName
+        $modelFolder = Join-Path $manufacturerFolder $folderName
         $extractedFolder = Join-Path $modelFolder "Extracted"
-        $winPeFolder = Join-Path $modelFolder "WinPE"
+        $winPeFolder = Join-Path $manufacturerFolder "WinPE"
 
         if (-not $PSCmdlet.ShouldProcess($modelFolder, "Register CSV model '$modelName'")) {
             continue
@@ -849,9 +852,10 @@ if (-not [string]::IsNullOrWhiteSpace($WinPESourcePath) -and -not (Test-Path -Li
 $driversRoot = Join-Path $DeploymentRoot "Content\Drivers"
 $tempRoot = Join-Path $DeploymentRoot "Content\Temp"
 $catalogPath = Join-Path $driversRoot "catalog.json"
-$modelFolder = Join-Path $driversRoot (Join-Path $ManufacturerName $FolderName)
+$manufacturerFolder = Join-Path $driversRoot $ManufacturerName
+$modelFolder = Join-Path $manufacturerFolder $FolderName
 $extractedFolder = Join-Path $modelFolder "Extracted"
-$winPeFolder = Join-Path $modelFolder "WinPE"
+$winPeFolder = Join-Path $manufacturerFolder "WinPE"
 # Online packs and CAB expands stage under Content\Temp, then promote into Drivers\.
 $tempWorkRoot = Join-Path $tempRoot (Join-Path "ImportOEMDrivers" (Join-Path $ManufacturerName $ModelId))
 $downloadStaging = Join-Path $tempWorkRoot "Download"
@@ -938,13 +942,13 @@ else {
 }
 
 if (-not [string]::IsNullOrWhiteSpace($WinPESourcePath)) {
-    Write-ImportLog "Copying WinPE drivers → WinPE\"
+    Write-ImportLog "Copying WinPE drivers → $ManufacturerName\WinPE\"
     Copy-DriverTree -Source $WinPESourcePath -Destination $winPeFolder -Force:$Force
 }
 else {
     if (-not (Test-Path -LiteralPath $winPeFolder)) {
         $null = New-Item -Path $winPeFolder -ItemType Directory -Force
-        Write-ImportLog "Created empty WinPE\ (add storage/NIC drivers later)." -ForegroundColor DarkYellow
+        Write-ImportLog "Created empty $ManufacturerName\WinPE\ (shared manufacturer WinPE; add storage/NIC drivers later)." -ForegroundColor DarkYellow
     }
 }
 

@@ -7,10 +7,10 @@ LiteDeployManager tool that imports an OEM driver pack into the deployment share
 
 ## What it does
 
-1. Creates `Content/Drivers/<ManufacturerName>/<Folder>/`
+1. Creates `Content/Drivers/<ManufacturerName>/<Folder>/` for the model and `Content/Drivers/<ManufacturerName>/WinPE/` at the manufacturer root
 2. Optionally **downloads** the pack from `-DownloadLink` into **`Content\Temp\ImportOEMDrivers\...`**
 3. Extracts CABs under **`Content\Temp\...`**, then promotes into **`Extracted\`**
-4. Creates **`WinPE\`** (empty or from `-WinPESourcePath`)
+4. Creates or fills **manufacturer `WinPE\`** (empty or from `-WinPESourcePath`)
 5. Upserts the manufacturer / model entry in `catalog.json`
 6. Or registers many supported models from a **CSV** (`-ModelsCsvPath`)
 
@@ -51,7 +51,7 @@ OptiPlex 7010,05A1;05A2
   -Format cab
 ```
 
-Creates empty `Extracted\` / `WinPE\` folders per model and upserts `catalog.json`. Import packs later with the single-model parameters.
+Creates empty model `Extracted\` folders, ensures manufacturer-root `WinPE\`, and upserts `catalog.json`. Import packs later with the single-model parameters.
 
 ## Staging vs published layout
 
@@ -60,10 +60,11 @@ Content\Temp\ImportOEMDrivers\<Mfr>\<ModelId>\
   Download\pack.cab
   Extracted\...                    ← temporary expand
 
-Content\Drivers\<Mfr>\<Model>\
-  pack.cab                         ← kept original
-  Extracted\...                    ← published FullOS injection
-  WinPE\...                        ← published WinPE drivers
+Content\Drivers\<Mfr>\
+  WinPE\...                        ← manufacturer-root WinPE drivers
+  <Model>\
+    pack.cab                       ← kept original
+    Extracted\...                  ← published FullOS injection
 ```
 
 ## Download transfer modes
@@ -96,4 +97,4 @@ Default never calls curl. `-UseCurl` fails closed if no curl binary is found.
 
 - `.exe` packs are stored in the model folder; populate `Extracted\` by passing an extracted folder as `-SourcePath`.
 - `.cab` packs expand under `Content\Temp`, then promote to `Extracted\`.
-- Runtime matches `manufacturerId` + `systemSku`, then uses `path\Extracted` or `path\WinPE`.
+- Runtime matches `manufacturerId` + `systemSku` → model `path\Extracted` for Setup; WinPE uses `Content\Drivers\<ManufacturerName>\WinPE`.

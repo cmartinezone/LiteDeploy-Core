@@ -91,9 +91,9 @@ Display names may change without breaking references. IDs must not contain a pas
       schemas\
         drivers-catalog.schema.json
       <ManufacturerFriendly>\
+        WinPE\...
         <ModelOrType>\
           Extracted\...
-          WinPE\...
   Workflows\
     catalog.json
     schemas\

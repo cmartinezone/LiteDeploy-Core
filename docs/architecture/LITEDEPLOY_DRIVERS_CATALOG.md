@@ -10,16 +10,12 @@ Related: [LITEDEPLOY_WORKFLOW_SCHEMA.md](LITEDEPLOY_WORKFLOW_SCHEMA.md), [LITEDE
 Keep driver packs simple: manufacturer (as WMI reports it) → models with **SystemSKU** match keys. No INF lists in the catalog.
 
 ```text
-Content/Drivers/catalog.json
-  └── manufacturers[]
-        ├── manufacturerId  (WMI Manufacturer, e.g. "Dell Inc.")
-        ├── name            (friendly, e.g. "Dell")
-        └── models[]
-              ├── systemSku[] / version / dates / format
-              ├── downloadLink?
-              └── path
-                    ├── Extracted/   ← FullOS / offline injection
-                    └── WinPE/       ← WinPE storage/network (per model)
+Content/Drivers/
+  catalog.json
+  <ManufacturerName>/
+    WinPE/                 ← shared WinPE storage/NIC for this manufacturer
+    <Model>/
+      Extracted/           ← FullOS / Setup.exe (per model)
 ```
 
 ## Files
@@ -34,7 +30,7 @@ Content/Drivers/catalog.json
 | Field | Role |
 | --- | --- |
 | `manufacturerId` | Exact `Win32_ComputerSystem.Manufacturer` (e.g. `Dell Inc.` with the period) |
-| `name` | Friendly UI / folder label (`Dell`) |
+| `name` | Friendly UI / folder label (`Dell`) — also the on-disk folder that owns `WinPE\` |
 | `enabled` | Hide when false |
 | `models` | Model packs for this OEM |
 
@@ -51,37 +47,37 @@ Content/Drivers/catalog.json
 | `format` | `exe` \| `cab` |
 | `downloadLink` | Optional original vendor URL |
 | `enabled` | Hide when false |
-| `path` | Repository-relative model folder |
+| `path` | Repository-relative **model** folder (FullOS under `path/Extracted`) |
 
 ## On-disk layout
 
 ```text
-Content/Drivers/<FriendlyName>/<ModelOrType>/
-  <original>.cab | <original>.exe     ← optional keep
-  Extracted/                          ← FullOS / DISM injection
+Content/Drivers/<ManufacturerName>/
+  WinPE/                              ← manufacturer-root WinPE (storage, NIC, …)
     *.inf / driver tree
-  WinPE/                              ← WinPE boot drivers (storage, NIC, etc.)
-    *.inf / driver tree
+  <ModelOrType>/
+    <original>.cab | <original>.exe   ← optional keep
+    Extracted/                        ← FullOS / Setup.exe injection
+      *.inf / driver tree
 ```
-
-`path` points at the model folder.
 
 | Consumer | Root |
 | --- | --- |
-| FullOS / offline apply | `Join-Path $path 'Extracted'` |
-| WinPE (Boot.wim / runtime) | `Join-Path $path 'WinPE'` |
+| FullOS / Setup.exe | `Join-Path $modelPath 'Extracted'` |
+| WinPE (Boot.wim / runtime) | `Content\Drivers\<ManufacturerName>\WinPE` |
 
-Each model carries its own `WinPE` pack for that manufacturer’s hardware (not a single global WinPE folder).
+`WinPE\` is **shared per manufacturer**, not per model.
 
 ## Runtime match → Setup.exe path
 
 1. Read WMI `Manufacturer` → equal `manufacturerId` (trim, case-insensitive).  
 2. Read SystemSKU / Machine Type / BaseBoardProduct → any value in `systemSku`.  
-3. Resolve that model’s directory (`path`, with FullOS content under `path\Extracted` and WinPE under `path\WinPE`).  
-4. When `ComputerSetup.ImageEngine` is `Setup.exe`, pass the **resolved model directory path** as a Setup switch (not a FFU-style mapping lookup during apply).  
-5. If no match → in-box / manual selection (existing SelectWorkflow policy).
+3. Resolve that model’s directory (`path` → FullOS under `path\Extracted`).  
+4. WinPE drivers for that OEM come from `Content\Drivers\<ManufacturerName>\WinPE`.  
+5. When `ComputerSetup.ImageEngine` is `Setup.exe`, pass the **resolved model directory path** (FullOS pack) as a Setup switch.  
+6. If no match → in-box / manual selection (existing SelectWorkflow policy).
 
-This is why LiteDeploy does **not** maintain a `DriverMapping.json` matching repo: Setup.exe is given the folder path directly after catalog/SKU (or UI) resolution.
+This is why LiteDeploy does **not** maintain a `DriverMapping.json` matching repo: Setup.exe is given the model folder path directly after catalog/SKU (or UI) resolution.
 
 ## Intentionally out of scope here
 
@@ -89,6 +85,6 @@ This is why LiteDeploy does **not** maintain a `DriverMapping.json` matching rep
 | --- | --- |
 | BootConfig auto-detect / manual pick | `ComputerSetup` / `Drivers` in BootConfig |
 | Online download during Media | `Drivers.AutoOnlineDownloadOnMedia` |
-| INF-level inventory | Inside `Extracted/` and `WinPE/` only |
+| INF-level inventory | Inside model `Extracted/` and manufacturer `WinPE/` only |
 | Import / Driver Manager | [`ImportOEMDrivers`](../../components/Manager/ImportOEMDrivers/) — downloads/extracts under `Content\Temp`, publishes to `Content\Drivers`; also `-ModelsCsvPath` to register manufacturer-supported models (`Model`,`SystemSku` / `SkuId`) without a pack |
 | OEM vendor catalog sync | [`SyncOEMDrivers`](../../components/Manager/SyncOEMDrivers/) — `-CheckStatus` table, `-UpdateAll` / `-Model` / `-SystemSku`; indexes in `Content\Temp\OemCatalogs\`; updates download **packs** into `Extracted\` (no FFU `DriverMapping.json`) ([design](./LITEDEPLOY_OEM_CATALOG_SYNC.md)) |
