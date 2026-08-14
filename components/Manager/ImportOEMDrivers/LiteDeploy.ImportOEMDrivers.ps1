@@ -62,6 +62,15 @@
     <DeploymentRoot>\Engine\Tools\Curl\curl.exe, then <DeploymentRoot>\Tools\Curl\curl.exe,
     then curl.exe on PATH. Default is native BITS / Invoke-WebRequest only.
 
+.PARAMETER ModelsCsvPath
+    Optional. Comma-separated CSV of supported models for this manufacturer.
+    Required columns: Model (or ModelName), SystemSku (or SkuId / Sku).
+    Multiple SKUs in one cell may be separated with ; or |.
+    Optional columns: ModelId, FolderName, Version, Format, DownloadLink.
+
+.PARAMETER CsvDelimiter
+    CSV field delimiter. Default is comma (,).
+
 .PARAMETER Force
     Overwrite existing Extracted\ / WinPE\ content and replace catalog model entry fields.
 
@@ -77,44 +86,14 @@
       -SourcePath "C:\Temp\Latitude_7450.cab"
 
 .EXAMPLE
-    .\LiteDeploy.ImportOEMDrivers.ps1 `
-      -DeploymentRoot "\\Server\DeploymentShare$" `
-      -ManufacturerId "LENOVO" `
-      -ManufacturerName "Lenovo" `
-      -ModelId "thinkpad-x1-carbon-gen11" `
-      -ModelName "ThinkPad X1 Carbon Gen 11" `
-      -SystemSku @("21KC","21KC004AUS") `
-      -Version "2026.03" `
-      -Format exe `
-      -SourcePath "C:\Temp\tp_x1_extracted" `
-      -WinPESourcePath "C:\Temp\tp_x1_winpe"
-
-.EXAMPLE
-    # Native API download (default), then import
+    # Register supported models for a manufacturer from CSV (Model,SystemSku)
     .\LiteDeploy.ImportOEMDrivers.ps1 `
       -DeploymentRoot "D:\DeploymentShare" `
       -ManufacturerId "Dell Inc." `
       -ManufacturerName "Dell" `
-      -ModelId "latitude-7450" `
-      -ModelName "Latitude 7450" `
-      -SystemSku "0C09" `
+      -ModelsCsvPath "D:\Lists\Dell-SupportedModels.csv" `
       -Version "2026.01" `
-      -Format cab `
-      -DownloadLink "https://downloads.dell.com/folder/example/Latitude_7450.cab"
-
-.EXAMPLE
-    # Optional curl download (Tools\Curl if present, else OS curl)
-    .\LiteDeploy.ImportOEMDrivers.ps1 `
-      -DeploymentRoot "D:\DeploymentShare" `
-      -ManufacturerId "Dell Inc." `
-      -ManufacturerName "Dell" `
-      -ModelId "latitude-7450" `
-      -ModelName "Latitude 7450" `
-      -SystemSku "0C09" `
-      -Version "2026.01" `
-      -Format cab `
-      -DownloadLink "https://downloads.dell.com/folder/example/Latitude_7450.cab" `
-      -UseCurl
+      -Format cab
 #>
 
 [CmdletBinding(SupportsShouldProcess = $true, DefaultParameterSetName = "LocalSource")]
@@ -128,17 +107,20 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$ManufacturerName,
 
-    [Parameter(Mandatory = $true)]
-    [string]$ModelId,
+    [Parameter(Mandatory = $true, ParameterSetName = "LocalSource")]
+    [Parameter(Mandatory = $true, ParameterSetName = "Download")]
+    [string]$ModelId = "",
 
-    [Parameter(Mandatory = $true)]
-    [string]$ModelName,
+    [Parameter(Mandatory = $true, ParameterSetName = "LocalSource")]
+    [Parameter(Mandatory = $true, ParameterSetName = "Download")]
+    [string]$ModelName = "",
 
-    [Parameter(Mandatory = $true)]
-    [string[]]$SystemSku,
+    [Parameter(Mandatory = $true, ParameterSetName = "LocalSource")]
+    [Parameter(Mandatory = $true, ParameterSetName = "Download")]
+    [string[]]$SystemSku = @(),
 
-    [Parameter(Mandatory = $true)]
-    [string]$Version,
+    [Parameter(Mandatory = $false)]
+    [string]$Version = "",
 
     [Parameter(Mandatory = $false)]
     [string]$ReleaseDate = "",
@@ -155,11 +137,20 @@ param(
     [Parameter(Mandatory = $false, ParameterSetName = "Download")]
     [string]$SourcePath = "",
 
-    [Parameter(Mandatory = $false)]
+    [Parameter(Mandatory = $false, ParameterSetName = "LocalSource")]
+    [Parameter(Mandatory = $false, ParameterSetName = "Download")]
     [string]$WinPESourcePath = "",
 
-    [Parameter(Mandatory = $false)]
+    [Parameter(Mandatory = $false, ParameterSetName = "LocalSource")]
+    [Parameter(Mandatory = $false, ParameterSetName = "Download")]
     [string]$FolderName = "",
+
+    [Parameter(Mandatory = $true, ParameterSetName = "ModelsCsv")]
+    [string]$ModelsCsvPath = "",
+
+    [Parameter(Mandatory = $false, ParameterSetName = "ModelsCsv")]
+    [ValidateSet(",", ";", "`t")]
+    [string]$CsvDelimiter = ",",
 
     [Parameter(Mandatory = $false)]
     [bool]$Enabled = $true,
@@ -601,6 +592,187 @@ function Update-DriversCatalogEntry {
     return $Catalog
 }
 
+function ConvertTo-LiteDeployModelId {
+    param([string]$Name)
+
+    $slug = $Name.Trim().ToLowerInvariant()
+    $slug = [regex]::Replace($slug, '[^a-z0-9]+', '-')
+    $slug = $slug.Trim('-')
+    if ([string]::IsNullOrWhiteSpace($slug)) {
+        throw "Cannot build ModelId from name '$Name'."
+    }
+    return $slug
+}
+
+function Get-CsvPropertyValue {
+    param(
+        $Row,
+        [string[]]$CandidateNames
+    )
+
+    foreach ($name in $CandidateNames) {
+        $prop = $Row.PSObject.Properties[$name]
+        if ($prop -and -not [string]::IsNullOrWhiteSpace([string]$prop.Value)) {
+            return [string]$prop.Value
+        }
+    }
+
+    # Case-insensitive header match
+    foreach ($prop in $Row.PSObject.Properties) {
+        foreach ($name in $CandidateNames) {
+            if ([string]::Equals($prop.Name, $name, [System.StringComparison]::OrdinalIgnoreCase) -and
+                -not [string]::IsNullOrWhiteSpace([string]$prop.Value)) {
+                return [string]$prop.Value
+            }
+        }
+    }
+    return $null
+}
+
+function Import-SupportedModelsFromCsv {
+    param(
+        [string]$CsvPath,
+        [string]$Delimiter,
+        [string]$DeploymentRoot,
+        [string]$ManufacturerId,
+        [string]$ManufacturerName,
+        [string]$DefaultVersion,
+        [string]$DefaultFormat,
+        [string]$ReleaseDate,
+        [string]$ImportedDate,
+        [bool]$Enabled,
+        [switch]$Force
+    )
+
+    if (-not (Test-Path -LiteralPath $CsvPath -PathType Leaf)) {
+        throw "ModelsCsvPath not found: $CsvPath"
+    }
+
+    $rows = @(Import-Csv -LiteralPath $CsvPath -Delimiter $Delimiter -ErrorAction Stop)
+    if ($rows.Count -eq 0) {
+        throw "Models CSV has no data rows: $CsvPath"
+    }
+
+    $driversRoot = Join-Path $DeploymentRoot "Content\Drivers"
+    $catalogPath = Join-Path $driversRoot "catalog.json"
+    $catalog = Get-OrCreateDriversCatalog -CatalogPath $catalogPath
+
+    $imported = [System.Collections.Generic.List[object]]::new()
+    $rowNumber = 1
+    foreach ($row in $rows) {
+        $rowNumber++
+        $modelName = Get-CsvPropertyValue -Row $row -CandidateNames @("Model", "ModelName", "Name", "FriendlyName")
+        $skuRaw = Get-CsvPropertyValue -Row $row -CandidateNames @("SystemSku", "SkuId", "SKU", "Sku", "SystemSKU")
+        if ([string]::IsNullOrWhiteSpace($modelName) -or [string]::IsNullOrWhiteSpace($skuRaw)) {
+            throw "CSV row $rowNumber must include Model and SystemSku (or SkuId) columns."
+        }
+
+        $modelIdRaw = Get-CsvPropertyValue -Row $row -CandidateNames @("ModelId", "Id")
+        $modelId = if (-not [string]::IsNullOrWhiteSpace($modelIdRaw)) {
+            $modelIdRaw.Trim()
+        } else {
+            ConvertTo-LiteDeployModelId -Name $modelName
+        }
+
+        $folderNameRaw = Get-CsvPropertyValue -Row $row -CandidateNames @("FolderName", "Folder")
+        $folderName = if (-not [string]::IsNullOrWhiteSpace($folderNameRaw)) {
+            $folderNameRaw.Trim()
+        } else {
+            $modelName.Trim()
+        }
+
+        $versionRaw = Get-CsvPropertyValue -Row $row -CandidateNames @("Version")
+        $rowVersion = if (-not [string]::IsNullOrWhiteSpace($versionRaw)) {
+            $versionRaw.Trim()
+        } elseif (-not [string]::IsNullOrWhiteSpace($DefaultVersion)) {
+            $DefaultVersion
+        } else {
+            "unknown"
+        }
+
+        $formatRaw = Get-CsvPropertyValue -Row $row -CandidateNames @("Format")
+        $rowFormat = if (-not [string]::IsNullOrWhiteSpace($formatRaw)) {
+            $formatRaw.Trim().TrimStart('.').ToLowerInvariant()
+        } elseif (-not [string]::IsNullOrWhiteSpace($DefaultFormat)) {
+            $DefaultFormat
+        } else {
+            "cab"
+        }
+        if ($rowFormat -notin @("exe", "cab")) {
+            throw "CSV row $rowNumber has invalid Format '$rowFormat' (use exe or cab)."
+        }
+
+        $downloadLinkRaw = Get-CsvPropertyValue -Row $row -CandidateNames @("DownloadLink", "Url", "URL")
+        $skuParts = @($skuRaw -split '[,;|]' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+        $skuList = Get-NormalizedSkuList -Values $skuParts
+
+        $modelFolder = Join-Path $driversRoot (Join-Path $ManufacturerName $folderName)
+        $extractedFolder = Join-Path $modelFolder "Extracted"
+        $winPeFolder = Join-Path $modelFolder "WinPE"
+
+        if (-not $PSCmdlet.ShouldProcess($modelFolder, "Register CSV model '$modelName'")) {
+            continue
+        }
+
+        if (-not (Test-Path -LiteralPath $modelFolder)) {
+            $null = New-Item -Path $modelFolder -ItemType Directory -Force
+        }
+        if (-not (Test-Path -LiteralPath $extractedFolder)) {
+            $null = New-Item -Path $extractedFolder -ItemType Directory -Force
+        }
+        if (-not (Test-Path -LiteralPath $winPeFolder)) {
+            $null = New-Item -Path $winPeFolder -ItemType Directory -Force
+        }
+
+        $relativePath = New-RelativeSharePath -Root $DeploymentRoot -FullPath $modelFolder
+        $modelEntry = [ordered]@{
+            modelId      = $modelId
+            name         = $modelName.Trim()
+            systemSku    = @($skuList)
+            version      = $rowVersion
+            releaseDate  = $ReleaseDate
+            importedDate = $ImportedDate
+            format       = $rowFormat
+            enabled      = [bool]$Enabled
+            path         = $relativePath
+        }
+        if (-not [string]::IsNullOrWhiteSpace($downloadLinkRaw)) {
+            $modelEntry["downloadLink"] = $downloadLinkRaw.Trim()
+        }
+
+        $catalog = Update-DriversCatalogEntry `
+            -Catalog $catalog `
+            -ManufacturerId $ManufacturerId `
+            -ManufacturerName $ManufacturerName `
+            -ManufacturerEnabled $true `
+            -ModelEntry $modelEntry `
+            -Force:$Force
+
+        Write-ImportLog "CSV model registered: $ManufacturerName / $($modelEntry.name) [$modelId] sku=$($skuList -join ';')" -ForegroundColor Green
+        $imported.Add([pscustomobject]@{
+            ModelId      = $modelId
+            ModelName    = $modelEntry.name
+            SystemSku    = $skuList
+            RelativePath = $relativePath
+            Version      = $rowVersion
+            Format       = $rowFormat
+        })
+    }
+
+    $ordered = ConvertTo-OrderedCatalog -Catalog $catalog
+    $json = $ordered | ConvertTo-Json -Depth 8
+    Set-Content -LiteralPath $catalogPath -Value $json -Encoding UTF8 -Force
+
+    return [pscustomobject]@{
+        CatalogPath      = $catalogPath
+        ModelsCsvPath    = $CsvPath
+        ManufacturerId   = $ManufacturerId
+        ManufacturerName = $ManufacturerName
+        ModelCount       = $imported.Count
+        Models           = @($imported.ToArray())
+    }
+}
+
 # ------------------------------------------------------------------------------
 # Validate inputs
 # ------------------------------------------------------------------------------
@@ -612,8 +784,41 @@ if (-not (Test-Path -LiteralPath $DeploymentRoot -PathType Container)) {
 
 $ManufacturerId = $ManufacturerId.Trim()
 $ManufacturerName = $ManufacturerName.Trim()
+
+if ([string]::IsNullOrWhiteSpace($ReleaseDate)) {
+    $ReleaseDate = (Get-Date).ToString("yyyy-MM-dd")
+}
+if (-not (Test-IsoDate $ReleaseDate)) {
+    throw "ReleaseDate must be YYYY-MM-DD. Got: $ReleaseDate"
+}
+$importedDate = (Get-Date).ToString("yyyy-MM-dd")
+
+# CSV bulk registration of manufacturer-supported models.
+if ($PSCmdlet.ParameterSetName -eq "ModelsCsv" -or -not [string]::IsNullOrWhiteSpace($ModelsCsvPath)) {
+    $csvPathResolved = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ModelsCsvPath)
+    Write-ImportLog "CSV import      : $csvPathResolved"
+    Write-ImportLog "Manufacturer    : $ManufacturerName ($ManufacturerId)"
+    Write-ImportLog "Delimiter       : '$CsvDelimiter'"
+
+    return (Import-SupportedModelsFromCsv `
+        -CsvPath $csvPathResolved `
+        -Delimiter $CsvDelimiter `
+        -DeploymentRoot $DeploymentRoot `
+        -ManufacturerId $ManufacturerId `
+        -ManufacturerName $ManufacturerName `
+        -DefaultVersion $Version `
+        -DefaultFormat $Format `
+        -ReleaseDate $ReleaseDate `
+        -ImportedDate $importedDate `
+        -Enabled:$Enabled `
+        -Force:$Force)
+}
+
 $ModelId = $ModelId.Trim()
 $ModelName = $ModelName.Trim()
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    throw "Version is required for single-model import."
+}
 $Version = $Version.Trim()
 $skuList = Get-NormalizedSkuList -Values $SystemSku
 
