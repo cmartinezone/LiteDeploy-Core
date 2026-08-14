@@ -73,12 +73,15 @@ Content/Drivers/<FriendlyName>/<ModelOrType>/
 
 Each model carries its own `WinPE` pack for that manufacturer’s hardware (not a single global WinPE folder).
 
-## Runtime match
+## Runtime match → Setup.exe path
 
 1. Read WMI `Manufacturer` → equal `manufacturerId` (trim, case-insensitive).  
 2. Read SystemSKU / Machine Type / BaseBoardProduct → any value in `systemSku`.  
-3. Use that model’s `path\Extracted` (FullOS) and/or `path\WinPE` (WinPE).  
-4. If no match → in-box / manual selection (existing SelectWorkflow policy).
+3. Resolve that model’s directory (`path`, with FullOS content under `path\Extracted` and WinPE under `path\WinPE`).  
+4. When `ComputerSetup.ImageEngine` is `Setup.exe`, pass the **resolved model directory path** as a Setup switch (not a FFU-style mapping lookup during apply).  
+5. If no match → in-box / manual selection (existing SelectWorkflow policy).
+
+This is why LiteDeploy does **not** maintain a `DriverMapping.json` matching repo: Setup.exe is given the folder path directly after catalog/SKU (or UI) resolution.
 
 ## Intentionally out of scope here
 

@@ -9,10 +9,10 @@ LiteDeploy does **not** import FFU code. We reuse vendor *index URLs and SKU mat
 | --- | --- | --- |
 | What they download | Many **individual** latest drivers (SoftPaq / PDK EXE sets) | One **driver pack** per model (CAB/EXE) |
 | On disk | Loose INF tree under `Drivers\Make\Model` (+ optional WIM) | Pack → **`Extracted\`** (FullOS) and optional **`WinPE\`** |
-| How deploy matches hardware | Separate **`DriverMapping.json`** “matching repo” (SystemId / MachineType → folder) | **`catalog.json`** only: `manufacturerId` + `systemSku[]` → `path\Extracted` |
-| Mapping file like FFU? | Yes | **No** — we will not create a DriverMapping-style matching repo |
+| How deploy matches hardware | Separate **`DriverMapping.json`** “matching repo” (SystemId / MachineType → folder); ApplyFFU picks the folder | Select/resolve model folder once → pass that **directory path into `Setup.exe` as a switch**; no separate mapping file |
+| Why different | FFU applies drivers itself from a matched folder/WIM | **`ImageEngine: Setup.exe`** receives the model dir path; Setup installs from that folder |
 
-So: learn *where* catalogs live from FFU; **do not** copy their per-driver download + mapping model. Our engine downloads the pack, extracts it into `Extracted\`, and upserts the model row in `catalog.json`.
+So: learn *where* catalogs live from FFU; **do not** copy their per-driver download + mapping model. Our engine downloads the pack, extracts it into `Extracted\`, upserts `catalog.json`, and at deploy time the runtime hands **that model directory path** to Setup.exe.
 
 ## Status
 
