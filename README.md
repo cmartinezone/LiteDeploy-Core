@@ -82,3 +82,4 @@ These stay in their own GitHub repos. LiteDeploy Core consumes them; it does not
 - [Catalog and workflow spec](docs/architecture/LITEDEPLOY_CATALOG_WORKFLOW_SPEC.md)
 - [Project status](docs/architecture/LITEDEPLOY_PROJECT_STATUS.md)
 - [Shared WPF UI host](docs/architecture/LITEDEPLOY_UI_HOST.md)
+- [Orchestrator branch model](docs/architecture/LITEDEPLOY_ORCHESTRATOR_BRANCH.md)

@@ -4,6 +4,7 @@ WinPE orchestration entry point invoked by BootInitializer after the deployment 
 
 **Script:** `LiteDeploy.DeploymentEngine.ps1`  
 **Plan:** [LITEDEPLOY_DEPLOYMENT_PLAN.md](../../docs/architecture/LITEDEPLOY_DEPLOYMENT_PLAN.md) Phase A–C  
+**Branch:** Develop and review on [`cursor/engine-orchestration-bd4d`](../../docs/architecture/LITEDEPLOY_ORCHESTRATOR_BRANCH.md) — do not merge engine work to `main` until promotion.  
 **Status:** Test-branch scaffold — Phase A orchestration only
 
 ## Role
