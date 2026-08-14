@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://litedeploy.local/schemas/drivers-catalog.schema.json",
+  "title": "LiteDeploy Drivers Catalog",
+  "description": "Manufacturer → model driver packs. Match WMI Manufacturer to manufacturerId and SystemSKU/Type to systemSku. Injection root is path/Extracted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "manufacturers"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "manufacturers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/manufacturer" }
+    }
+  },
+  "$defs": {
+    "idToken": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._ -]*$",
+      "minLength": 1
+    },
+    "isoDate": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "Calendar date YYYY-MM-DD."
+    },
+    "manufacturer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manufacturerId", "name", "enabled", "models"],
+      "properties": {
+        "manufacturerId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact Win32_ComputerSystem.Manufacturer string from WMI/WMIC (e.g. Dell Inc., LENOVO, HP)."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Friendly manufacturer label for UI and folder naming (e.g. Dell)."
+        },
+        "enabled": { "type": "boolean" },
+        "models": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/model" }
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "modelId",
+        "name",
+        "systemSku",
+        "version",
+        "releaseDate",
+        "importedDate",
+        "format",
+        "enabled",
+        "path"
+      ],
+      "properties": {
+        "modelId": {
+          "$ref": "#/$defs/idToken",
+          "description": "Stable id within the manufacturer (e.g. latitude-7450)."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Friendly model name for UI."
+        },
+        "systemSku": {
+          "type": "array",
+          "description": "Hardware match keys: Dell SystemSKU, Lenovo Machine Type/MTM, HP BaseBoardProduct, etc.",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Driver pack version label."
+        },
+        "releaseDate": {
+          "$ref": "#/$defs/isoDate",
+          "description": "Vendor pack release date."
+        },
+        "importedDate": {
+          "$ref": "#/$defs/isoDate",
+          "description": "Date the pack was imported into the deployment share."
+        },
+        "format": {
+          "type": "string",
+          "enum": ["exe", "cab"],
+          "description": "Original vendor pack format (shown as .exe / .cab in UI)."
+        },
+        "downloadLink": {
+          "type": "string",
+          "format": "uri",
+          "description": "Optional URL of the original vendor pack."
+        },
+        "enabled": { "type": "boolean" },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Repository-relative model folder. Runtime injects from path/Extracted."
+        }
+      }
+    }
+  }
+}

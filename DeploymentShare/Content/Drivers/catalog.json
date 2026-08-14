@@ -1,1 +1,62 @@
-{}
+{
+  "$schema": "./schemas/drivers-catalog.schema.json",
+  "schemaVersion": 1,
+  "manufacturers": [
+    {
+      "manufacturerId": "Dell Inc.",
+      "name": "Dell",
+      "enabled": true,
+      "models": [
+        {
+          "modelId": "latitude-7450",
+          "name": "Latitude 7450",
+          "systemSku": ["0C09"],
+          "version": "2026.01",
+          "releaseDate": "2026-01-15",
+          "importedDate": "2026-01-20",
+          "format": "cab",
+          "downloadLink": "https://downloads.dell.com/folder/example/Latitude_7450_Win11_x64.cab",
+          "enabled": true,
+          "path": "Content/Drivers/Dell/Latitude 7450"
+        }
+      ]
+    },
+    {
+      "manufacturerId": "LENOVO",
+      "name": "Lenovo",
+      "enabled": true,
+      "models": [
+        {
+          "modelId": "thinkpad-x1-carbon-gen11",
+          "name": "ThinkPad X1 Carbon Gen 11",
+          "systemSku": ["21KC", "21KC004AUS"],
+          "version": "2026.03",
+          "releaseDate": "2026-03-01",
+          "importedDate": "2026-03-12",
+          "format": "exe",
+          "downloadLink": "https://download.lenovo.com/example/tp_x1carbon_gen11_win11.exe",
+          "enabled": true,
+          "path": "Content/Drivers/Lenovo/21KC"
+        }
+      ]
+    },
+    {
+      "manufacturerId": "HP",
+      "name": "HP",
+      "enabled": true,
+      "models": [
+        {
+          "modelId": "elitebook-840-g10",
+          "name": "EliteBook 840 G10",
+          "systemSku": ["8B01"],
+          "version": "2026.02",
+          "releaseDate": "2026-02-01",
+          "importedDate": "2026-02-08",
+          "format": "exe",
+          "enabled": true,
+          "path": "Content/Drivers/HP/EliteBook 840 G10"
+        }
+      ]
+    }
+  ]
+}
