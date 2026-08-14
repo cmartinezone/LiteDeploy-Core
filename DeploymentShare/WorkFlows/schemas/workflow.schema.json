@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://litedeploy.local/schemas/workflow.schema.json",
+  "title": "LiteDeploy Workflow",
+  "description": "Ordered deployment policy. References OS/edition IDs and package IDs only — no WIM paths, Setup paths, image indexes, or secrets.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "workflowId",
+    "name",
+    "enabled",
+    "order",
+    "revision",
+    "osTargets",
+    "actions"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Workflow schema major version. Unsupported versions must fail closed."
+    },
+    "workflowId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "description": "Immutable globally unique workflow identifier."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Technician-facing display name. May change without changing workflowId."
+    },
+    "description": {
+      "type": "string",
+      "description": "Optional short description for SelectWorkflow."
+    },
+    "enabled": {
+      "type": "boolean",
+      "description": "When false, SelectWorkflow hides this workflow."
+    },
+    "order": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "UI sort key among workflows (ascending)."
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Increment when actions or OS bindings change. Persist on DeploymentSelection for resume pinning."
+    },
+    "requiredCredentialIds": {
+      "type": "array",
+      "description": "Credential IDs that must be staged via WinPECT before reboot. IDs only — never secrets.",
+      "items": { "$ref": "#/$defs/credentialId" },
+      "uniqueItems": true,
+      "default": []
+    },
+    "osTargets": {
+      "type": "array",
+      "description": "Enabled OS media this workflow may deploy. SelectWorkflow lists only enabled targets.",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/osTarget" }
+    },
+    "actions": {
+      "type": "array",
+      "description": "Ordered post-selection work. Engine executes by order; FullOS resumes at first incomplete action.",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/action" }
+    }
+  },
+  "$defs": {
+    "idToken": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "credentialId": {
+      "$ref": "#/$defs/idToken",
+      "description": "DeployVault / WinPECT credential reference ID."
+    },
+    "osTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["osId", "order", "enabled", "editions"],
+      "properties": {
+        "osId": {
+          "$ref": "#/$defs/idToken",
+          "description": "Must exist in Content/OperatingSystems/catalog.json."
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "UI sort key among OS entries for this workflow."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "When false, hide this OS under the workflow."
+        },
+        "editions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/editionTarget" }
+        }
+      }
+    },
+    "editionTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["editionId", "order", "enabled"],
+      "properties": {
+        "editionId": {
+          "$ref": "#/$defs/idToken",
+          "description": "Must exist under the parent osId in the OS catalog."
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "UI sort key among editions for this OS."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "When false, hide this edition."
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "order",
+        "actionId",
+        "name",
+        "type",
+        "phase",
+        "executionContext"
+      ],
+      "properties": {
+        "order": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Execution and resume sequence (ascending). Unique within the workflow."
+        },
+        "actionId": {
+          "$ref": "#/$defs/idToken",
+          "description": "Stable within the workflow across revisions."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "enum": ["Package"],
+          "description": "v1 supports Package only. Other types may be added later without reusing IDs."
+        },
+        "packageId": {
+          "$ref": "#/$defs/idToken",
+          "description": "Required when type is Package. Resolves Packages/<packageId>/package.json."
+        },
+        "phase": {
+          "type": "string",
+          "enum": ["WinPE", "OfflineOS", "FullOS", "UserLogon"],
+          "description": "When the action may run."
+        },
+        "executionContext": {
+          "type": "string",
+          "enum": ["System", "InteractiveUser", "RunAs"],
+          "description": "Who runs the action."
+        },
+        "runAsCredentialId": {
+          "$ref": "#/$defs/credentialId",
+          "description": "Required when executionContext is RunAs. Credential ID only."
+        },
+        "requiredCredentialIds": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/credentialId" },
+          "uniqueItems": true,
+          "default": []
+        },
+        "continueOnError": {
+          "type": "boolean",
+          "default": false
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "When false, skip this action without failing the workflow."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "const": "Package" } },
+            "required": ["type"]
+          },
+          "then": { "required": ["packageId"] }
+        },
+        {
+          "if": {
+            "properties": { "executionContext": { "const": "RunAs" } },
+            "required": ["executionContext"]
+          },
+          "then": { "required": ["runAsCredentialId"] }
+        },
+        {
+          "if": {
+            "properties": { "executionContext": { "const": "RunAs" } },
+            "required": ["executionContext"]
+          },
+          "then": {
+            "properties": {
+              "requiredCredentialIds": { "minItems": 1 }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

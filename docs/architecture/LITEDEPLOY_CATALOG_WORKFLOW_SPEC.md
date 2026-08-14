@@ -176,51 +176,66 @@ Planned catalog additions should remain backward-compatible:
 
 A workflow defines an ordered deployment policy. It does not contain a WIM path, Setup path, or image index.
 
+**Authoritative v1 reference:** [LITEDEPLOY_WORKFLOW_SCHEMA.md](LITEDEPLOY_WORKFLOW_SCHEMA.md)  
+**JSON Schema:** [`DeploymentShare/WorkFlows/schemas/workflow.schema.json`](../../DeploymentShare/WorkFlows/schemas/workflow.schema.json)  
+**Examples:** `StandardWorkflow.json`, `IntuneReadyWorkflow.json`
+
+Core shape:
+
 ```json
 {
   "$schema": "./schemas/workflow.schema.json",
   "schemaVersion": 1,
   "workflowId": "standard-workstation",
   "name": "Standard Workstation",
-  "description": "Standard managed workstation configuration",
   "enabled": true,
+  "order": 10,
   "revision": 1,
-  "requiredCredentialIds": [
-    "DeploymentShare",
-    "DomainJoin"
+  "requiredCredentialIds": ["DeploymentShare", "DomainJoin"],
+  "osTargets": [
+    {
+      "osId": "win11-26h2-es-es-26300.8772-x64",
+      "order": 10,
+      "enabled": true,
+      "editions": [
+        {
+          "editionId": "win11-26h2-windows-11-pro-26300.8772-x64",
+          "order": 20,
+          "enabled": true
+        }
+      ]
+    }
   ],
-  "compatibility": {
-    "architectures": ["x64"],
-    "minimumBuild": 26100,
-    "skuCodes": ["Enterprise", "Professional"]
-  },
   "actions": [
     {
-      "actionId": "configure-base-os",
-      "name": "Configure base operating system",
+      "order": 10,
+      "actionId": "apply-base-config",
+      "name": "Apply base OS configuration",
       "type": "Package",
       "packageId": "configure-base-os",
       "phase": "FullOS",
       "executionContext": "System",
-      "continueOnError": false,
-      "retry": {
-        "maximumAttempts": 2,
-        "delaySeconds": 30
-      }
+      "continueOnError": false
     },
     {
-      "actionId": "install-office",
-      "name": "Install Microsoft Office",
+      "order": 40,
+      "actionId": "install-lob-app",
+      "name": "Install LOB app as service account",
       "type": "Package",
-      "packageId": "microsoft-office",
+      "packageId": "lob-finance-client",
       "phase": "FullOS",
-      "executionContext": "System",
-      "dependsOn": ["configure-base-os"],
+      "executionContext": "RunAs",
+      "runAsCredentialId": "ApplicationInstall",
+      "requiredCredentialIds": ["ApplicationInstall"],
       "continueOnError": false
     }
   ]
 }
 ```
+
+SelectWorkflow sorts by `order`, shows only `enabled` OS/editions, and persists `workflowId` + `osId` + `editionId` (+ `revision`). The engine executes `actions` by `order`.
+
+Legacy notes below retained for package/phase detail; prefer the reference doc for the workflow file contract.
 
 ### Supported execution phases
 
@@ -237,9 +252,9 @@ A workflow defines an ordered deployment policy. It does not contain a WIM path,
 | --- | --- |
 | `System` | Machine-level packages, configuration, domain join, and credential-dependent actions. |
 | `InteractiveUser` | Per-user MSIX, user profile changes, and visible user actions. |
-| `CredentialId` | Exceptional run-as operations using an explicitly declared credential reference. |
+| `RunAs` | Run as an imported `PSCredential`; requires `runAsCredentialId` (credential ID only). |
 
-The engine must reject an action whose phase and execution context are incompatible.
+The engine must reject an action whose phase and execution context are incompatible. `RunAs` without `runAsCredentialId` fails closed.
 
 ## 6. Action contract
 

@@ -31,6 +31,7 @@ LiteDeploy engine work integrates on a dedicated test branch, not on `main`.
 - `04-UiHost` — shared WPF chrome
 - Progress `09`, Credentials `10`
 - `ComputerSetup.DriveSelection` / `ComputerSetup.ImageEngine` (`Setup.exe` | `Dism.exe`) on share BootConfig
+- Workflow v1 schema + `StandardWorkflow` / `IntuneReadyWorkflow` examples under `DeploymentShare/WorkFlows`
 
 ## Related
 

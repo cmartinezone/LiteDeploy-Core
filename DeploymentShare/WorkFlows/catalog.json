@@ -1,0 +1,22 @@
+{
+  "$schema": "./schemas/workflow-catalog.schema.json",
+  "schemaVersion": 1,
+  "workflows": [
+    {
+      "workflowId": "standard-workstation",
+      "name": "Standard Workstation",
+      "path": "WorkFlows/StandardWorkflow.json",
+      "enabled": true,
+      "order": 10,
+      "revision": 1
+    },
+    {
+      "workflowId": "intune-ready",
+      "name": "Intune Ready",
+      "path": "WorkFlows/IntuneReadyWorkflow.json",
+      "enabled": true,
+      "order": 20,
+      "revision": 1
+    }
+  ]
+}

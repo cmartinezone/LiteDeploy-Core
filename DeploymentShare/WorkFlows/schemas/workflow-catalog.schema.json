@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://litedeploy.local/schemas/workflow-catalog.schema.json",
+  "title": "LiteDeploy Workflow Catalog",
+  "description": "Index of workflow definition files under WorkFlows/. SelectWorkflow discovers enabled entries sorted by order.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "workflows"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "workflows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["workflowId", "name", "path", "enabled", "order", "revision"],
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "name": { "type": "string", "minLength": 1 },
+          "path": {
+            "type": "string",
+            "description": "Repository-relative path to the workflow JSON file."
+          },
+          "enabled": { "type": "boolean" },
+          "order": { "type": "integer", "minimum": 0 },
+          "revision": { "type": "integer", "minimum": 1 }
+        }
+      }
+    }
+  }
+}

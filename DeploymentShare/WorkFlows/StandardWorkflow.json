@@ -1,0 +1,86 @@
+{
+  "$schema": "./schemas/workflow.schema.json",
+  "schemaVersion": 1,
+  "workflowId": "standard-workstation",
+  "name": "Standard Workstation",
+  "description": "Domain-joined managed workstation",
+  "enabled": true,
+  "order": 10,
+  "revision": 1,
+  "requiredCredentialIds": [
+    "DeploymentShare",
+    "DomainJoin"
+  ],
+  "osTargets": [
+    {
+      "osId": "win11-26h2-es-es-26300.8772-x64",
+      "order": 10,
+      "enabled": true,
+      "editions": [
+        {
+          "editionId": "win11-26h2-windows-11-enterprise-26300.8772-x64",
+          "order": 10,
+          "enabled": true
+        },
+        {
+          "editionId": "win11-26h2-windows-11-pro-26300.8772-x64",
+          "order": 20,
+          "enabled": true
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "order": 10,
+      "actionId": "apply-base-config",
+      "name": "Apply base OS configuration",
+      "type": "Package",
+      "packageId": "configure-base-os",
+      "phase": "FullOS",
+      "executionContext": "System",
+      "continueOnError": false,
+      "enabled": true
+    },
+    {
+      "order": 20,
+      "actionId": "join-domain",
+      "name": "Join Active Directory domain",
+      "type": "Package",
+      "packageId": "domain-join",
+      "phase": "FullOS",
+      "executionContext": "System",
+      "requiredCredentialIds": [
+        "DomainJoin"
+      ],
+      "continueOnError": false,
+      "enabled": true
+    },
+    {
+      "order": 30,
+      "actionId": "install-office",
+      "name": "Install Microsoft Office",
+      "type": "Package",
+      "packageId": "microsoft-office",
+      "phase": "FullOS",
+      "executionContext": "System",
+      "continueOnError": false,
+      "enabled": true
+    },
+    {
+      "order": 40,
+      "actionId": "install-lob-app",
+      "name": "Install LOB app as service account",
+      "type": "Package",
+      "packageId": "lob-finance-client",
+      "phase": "FullOS",
+      "executionContext": "RunAs",
+      "runAsCredentialId": "ApplicationInstall",
+      "requiredCredentialIds": [
+        "ApplicationInstall"
+      ],
+      "continueOnError": false,
+      "enabled": true
+    }
+  ]
+}

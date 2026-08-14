@@ -1,0 +1,56 @@
+{
+  "$schema": "./schemas/workflow.schema.json",
+  "schemaVersion": 1,
+  "workflowId": "intune-ready",
+  "name": "Intune Ready",
+  "description": "Autopilot / Entra-joined Intune enrollment path",
+  "enabled": true,
+  "order": 20,
+  "revision": 1,
+  "requiredCredentialIds": [
+    "DeploymentShare"
+  ],
+  "osTargets": [
+    {
+      "osId": "win11-26h2-es-es-26300.8772-x64",
+      "order": 10,
+      "enabled": true,
+      "editions": [
+        {
+          "editionId": "win11-26h2-windows-11-enterprise-26300.8772-x64",
+          "order": 10,
+          "enabled": true
+        },
+        {
+          "editionId": "win11-26h2-windows-11-pro-26300.8772-x64",
+          "order": 20,
+          "enabled": true
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "order": 10,
+      "actionId": "apply-base-config",
+      "name": "Apply base OS configuration",
+      "type": "Package",
+      "packageId": "configure-base-os",
+      "phase": "FullOS",
+      "executionContext": "System",
+      "continueOnError": false,
+      "enabled": true
+    },
+    {
+      "order": 20,
+      "actionId": "stage-autopilot",
+      "name": "Stage Autopilot / Intune enrollment",
+      "type": "Package",
+      "packageId": "intune-autopilot",
+      "phase": "FullOS",
+      "executionContext": "System",
+      "continueOnError": false,
+      "enabled": true
+    }
+  ]
+}
