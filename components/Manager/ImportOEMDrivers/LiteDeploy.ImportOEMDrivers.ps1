@@ -7,9 +7,10 @@
     drivers under WinPE\, then upserts Content\Drivers\catalog.json using the v1
     drivers catalog contract (manufacturerId from WMI, systemSku, format, dates).
 
-    Does not download vendor catalogs yet — pass a local .cab / .exe / extracted folder.
-    Future online sync can learn from OEM catalog patterns (e.g. FFU) while keeping
-    this LiteDeploy-owned importer and catalog shape.
+    Local import: pass -SourcePath (.cab / .exe / extracted folder).
+    Remote import: pass -DownloadLink without -SourcePath to download first.
+    Downloads default to native APIs (BITS, then Invoke-WebRequest). -UseCurl is
+    optional and prefers Engine\Tools\Curl\curl.exe, then OS curl.exe.
 
 .PARAMETER DeploymentRoot
     Deployment share root (contains Content\Drivers).
@@ -39,10 +40,10 @@
     Original pack format: exe or cab. Auto-detected from SourcePath when possible.
 
 .PARAMETER DownloadLink
-    Optional original vendor URL.
+    Vendor URL. Stored in the catalog. When -SourcePath is omitted, the pack is downloaded from this URL first.
 
 .PARAMETER SourcePath
-    Local .cab, .exe, or folder of extracted FullOS drivers.
+    Local .cab, .exe, or folder of extracted FullOS drivers. Optional when -DownloadLink is set for remote import.
 
 .PARAMETER WinPESourcePath
     Optional folder of WinPE storage/NIC drivers to copy into WinPE\.
@@ -52,6 +53,11 @@
 
 .PARAMETER Enabled
     Catalog enabled flag. Default $true.
+
+.PARAMETER UseCurl
+    Optional. Download with curl instead of native APIs. Prefers
+    <DeploymentRoot>\Engine\Tools\Curl\curl.exe, then <DeploymentRoot>\Tools\Curl\curl.exe,
+    then curl.exe on PATH. Default is native BITS / Invoke-WebRequest only.
 
 .PARAMETER Force
     Overwrite existing Extracted\ / WinPE\ content and replace catalog model entry fields.
@@ -79,9 +85,36 @@
       -Format exe `
       -SourcePath "C:\Temp\tp_x1_extracted" `
       -WinPESourcePath "C:\Temp\tp_x1_winpe"
+
+.EXAMPLE
+    # Native API download (default), then import
+    .\LiteDeploy.ImportOEMDrivers.ps1 `
+      -DeploymentRoot "D:\DeploymentShare" `
+      -ManufacturerId "Dell Inc." `
+      -ManufacturerName "Dell" `
+      -ModelId "latitude-7450" `
+      -ModelName "Latitude 7450" `
+      -SystemSku "0C09" `
+      -Version "2026.01" `
+      -Format cab `
+      -DownloadLink "https://downloads.dell.com/folder/example/Latitude_7450.cab"
+
+.EXAMPLE
+    # Optional curl download (Tools\Curl if present, else OS curl)
+    .\LiteDeploy.ImportOEMDrivers.ps1 `
+      -DeploymentRoot "D:\DeploymentShare" `
+      -ManufacturerId "Dell Inc." `
+      -ManufacturerName "Dell" `
+      -ModelId "latitude-7450" `
+      -ModelName "Latitude 7450" `
+      -SystemSku "0C09" `
+      -Version "2026.01" `
+      -Format cab `
+      -DownloadLink "https://downloads.dell.com/folder/example/Latitude_7450.cab" `
+      -UseCurl
 #>
 
-[CmdletBinding(SupportsShouldProcess = $true)]
+[CmdletBinding(SupportsShouldProcess = $true, DefaultParameterSetName = "LocalSource")]
 param(
     [Parameter(Mandatory = $true)]
     [string]$DeploymentRoot,
@@ -111,11 +144,13 @@ param(
     [ValidateSet("exe", "cab")]
     [string]$Format = "",
 
-    [Parameter(Mandatory = $false)]
+    [Parameter(Mandatory = $false, ParameterSetName = "LocalSource")]
+    [Parameter(Mandatory = $true, ParameterSetName = "Download")]
     [string]$DownloadLink = "",
 
-    [Parameter(Mandatory = $true)]
-    [string]$SourcePath,
+    [Parameter(Mandatory = $true, ParameterSetName = "LocalSource")]
+    [Parameter(Mandatory = $false, ParameterSetName = "Download")]
+    [string]$SourcePath = "",
 
     [Parameter(Mandatory = $false)]
     [string]$WinPESourcePath = "",
@@ -125,6 +160,9 @@ param(
 
     [Parameter(Mandatory = $false)]
     [bool]$Enabled = $true,
+
+    [Parameter(Mandatory = $false, ParameterSetName = "Download")]
+    [switch]$UseCurl,
 
     [Parameter(Mandatory = $false)]
     [switch]$Force
@@ -139,6 +177,137 @@ function Write-ImportLog {
         [ConsoleColor]$ForegroundColor = [ConsoleColor]::Cyan
     )
     Write-Host " [ImportOEMDrivers]  $Message" -ForegroundColor $ForegroundColor
+}
+
+function Resolve-LiteDeployCurlPath {
+    param([string]$DeploymentRoot)
+
+    $candidates = @(
+        (Join-Path $DeploymentRoot "Engine\Tools\Curl\curl.exe"),
+        (Join-Path $DeploymentRoot "Tools\Curl\curl.exe")
+    )
+
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+            return (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+
+    $osCurl = Get-Command curl.exe -ErrorAction SilentlyContinue
+    if ($osCurl -and $osCurl.Source) {
+        return [string]$osCurl.Source
+    }
+
+    return $null
+}
+
+function Save-RemoteFileNative {
+    param(
+        [string]$Uri,
+        [string]$Destination
+    )
+
+    $destinationDir = Split-Path -Parent $Destination
+    if (-not (Test-Path -LiteralPath $destinationDir)) {
+        $null = New-Item -Path $destinationDir -ItemType Directory -Force
+    }
+
+    if (Test-Path -LiteralPath $Destination) {
+        Remove-Item -LiteralPath $Destination -Force
+    }
+
+    # Prefer BITS when available (Windows admin workstation / share host).
+    if (Get-Command Start-BitsTransfer -ErrorAction SilentlyContinue) {
+        Write-ImportLog "Downloading (BITS): $Uri"
+        try {
+            Start-BitsTransfer -Source $Uri -Destination $Destination -ErrorAction Stop
+            if (Test-Path -LiteralPath $Destination -PathType Leaf) {
+                return
+            }
+        }
+        catch {
+            Write-ImportLog "BITS failed; falling back to Invoke-WebRequest. $($_.Exception.Message)" -ForegroundColor DarkYellow
+        }
+    }
+
+    Write-ImportLog "Downloading (Invoke-WebRequest): $Uri"
+    Invoke-WebRequest -Uri $Uri -OutFile $Destination -UseBasicParsing -ErrorAction Stop
+    if (-not (Test-Path -LiteralPath $Destination -PathType Leaf)) {
+        throw "Native download produced no file: $Destination"
+    }
+}
+
+function Save-RemoteFileCurl {
+    param(
+        [string]$Uri,
+        [string]$Destination,
+        [string]$DeploymentRoot
+    )
+
+    $curlPath = Resolve-LiteDeployCurlPath -DeploymentRoot $DeploymentRoot
+    if (-not $curlPath) {
+        throw "-UseCurl was set but curl was not found under Engine\Tools\Curl, Tools\Curl, or PATH."
+    }
+
+    $destinationDir = Split-Path -Parent $Destination
+    if (-not (Test-Path -LiteralPath $destinationDir)) {
+        $null = New-Item -Path $destinationDir -ItemType Directory -Force
+    }
+    if (Test-Path -LiteralPath $Destination) {
+        Remove-Item -LiteralPath $Destination -Force
+    }
+
+    Write-ImportLog "Downloading (curl): $curlPath"
+    $args = @(
+        "--fail",
+        "--location",
+        "--silent",
+        "--show-error",
+        "--output", $Destination,
+        $Uri
+    )
+    $p = Start-Process -FilePath $curlPath -ArgumentList $args -Wait -PassThru -NoNewWindow
+    if ($p.ExitCode -ne 0) {
+        throw "curl failed (exit $($p.ExitCode)) for '$Uri'."
+    }
+    if (-not (Test-Path -LiteralPath $Destination -PathType Leaf)) {
+        throw "curl produced no file: $Destination"
+    }
+}
+
+function Get-DownloadFileName {
+    param(
+        [string]$Uri,
+        [string]$Format
+    )
+
+    try {
+        $uriObj = [Uri]$Uri
+        $leaf = [System.IO.Path]::GetFileName($uriObj.LocalPath)
+        if (-not [string]::IsNullOrWhiteSpace($leaf) -and $leaf -notlike "*[*") {
+            return $leaf
+        }
+    }
+    catch {}
+
+    $ext = if ($Format) { ".$Format" } else { ".bin" }
+    return ("driver-pack-{0:yyyyMMdd-HHmmss}{1}" -f (Get-Date), $ext)
+}
+
+function Save-RemoteDriverPack {
+    param(
+        [string]$Uri,
+        [string]$Destination,
+        [string]$DeploymentRoot,
+        [switch]$UseCurl
+    )
+
+    if ($UseCurl) {
+        Save-RemoteFileCurl -Uri $Uri -Destination $Destination -DeploymentRoot $DeploymentRoot
+    }
+    else {
+        Save-RemoteFileNative -Uri $Uri -Destination $Destination
+    }
 }
 
 function Test-IsoDate {
@@ -458,23 +627,17 @@ if (-not (Test-IsoDate $ReleaseDate)) {
 }
 $importedDate = (Get-Date).ToString("yyyy-MM-dd")
 
-if (-not (Test-Path -LiteralPath $SourcePath)) {
-    throw "SourcePath not found: $SourcePath"
-}
+$downloadLinkValue = if ([string]::IsNullOrWhiteSpace($DownloadLink)) { "" } else { $DownloadLink.Trim() }
+$effectiveSourcePath = $SourcePath
 
-if ([string]::IsNullOrWhiteSpace($Format)) {
-    if (Test-Path -LiteralPath $SourcePath -PathType Leaf) {
-        $ext = [System.IO.Path]::GetExtension($SourcePath).TrimStart('.').ToLowerInvariant()
-        if ($ext -in @("exe", "cab")) {
-            $Format = $ext
-        }
-        else {
-            throw "Cannot detect Format from '$SourcePath'. Pass -Format exe or -Format cab."
-        }
+# Remote import: download when SourcePath is omitted and DownloadLink is set.
+$didDownload = $false
+if ([string]::IsNullOrWhiteSpace($effectiveSourcePath)) {
+    if ([string]::IsNullOrWhiteSpace($downloadLinkValue)) {
+        throw "Provide -SourcePath for local import, or -DownloadLink to download the pack."
     }
-    else {
-        # Extracted folder import — format still required for catalog metadata.
-        throw "When -SourcePath is a folder, pass -Format exe or -Format cab for catalog metadata."
+    if ($PSCmdlet.ParameterSetName -eq "LocalSource" -and -not $PSBoundParameters.ContainsKey("DownloadLink")) {
+        throw "Provide -SourcePath for local import, or -DownloadLink to download the pack."
     }
 }
 
@@ -487,13 +650,20 @@ $catalogPath = Join-Path $driversRoot "catalog.json"
 $modelFolder = Join-Path $driversRoot (Join-Path $ManufacturerName $FolderName)
 $extractedFolder = Join-Path $modelFolder "Extracted"
 $winPeFolder = Join-Path $modelFolder "WinPE"
+$downloadStaging = Join-Path $modelFolder "_download"
 
 Write-ImportLog "Deployment root : $DeploymentRoot"
 Write-ImportLog "Model folder    : $modelFolder"
 Write-ImportLog "Manufacturer    : $ManufacturerName ($ManufacturerId)"
 Write-ImportLog "Model           : $ModelName [$ModelId]"
 Write-ImportLog "SystemSku       : $($skuList -join ', ')"
-Write-ImportLog "Format/Version  : $Format / $Version"
+Write-ImportLog "Format/Version  : $(if ($Format) { $Format } else { '(auto)' }) / $Version"
+if ($UseCurl) {
+    Write-ImportLog "Transfer mode   : curl (-UseCurl)"
+}
+elseif ([string]::IsNullOrWhiteSpace($effectiveSourcePath) -and $downloadLinkValue) {
+    Write-ImportLog "Transfer mode   : native APIs (BITS / Invoke-WebRequest)"
+}
 
 if (-not $PSCmdlet.ShouldProcess($modelFolder, "Import OEM drivers and update catalog.json")) {
     return
@@ -503,7 +673,38 @@ if (-not (Test-Path -LiteralPath $modelFolder)) {
     $null = New-Item -Path $modelFolder -ItemType Directory -Force
 }
 
-Import-SourceIntoExtracted -SourcePath $SourcePath -ModelFolder $modelFolder -ExtractedFolder $extractedFolder -ResolvedFormat $Format -Force:$Force
+if ([string]::IsNullOrWhiteSpace($effectiveSourcePath)) {
+    $fileName = Get-DownloadFileName -Uri $downloadLinkValue -Format $Format
+    if (-not (Test-Path -LiteralPath $downloadStaging)) {
+        $null = New-Item -Path $downloadStaging -ItemType Directory -Force
+    }
+    $downloadTarget = Join-Path $downloadStaging $fileName
+    Save-RemoteDriverPack -Uri $downloadLinkValue -Destination $downloadTarget -DeploymentRoot $DeploymentRoot -UseCurl:$UseCurl
+    $effectiveSourcePath = $downloadTarget
+    $didDownload = $true
+    Write-ImportLog "Downloaded pack : $effectiveSourcePath" -ForegroundColor Green
+}
+
+if (-not (Test-Path -LiteralPath $effectiveSourcePath)) {
+    throw "SourcePath not found: $effectiveSourcePath"
+}
+
+if ([string]::IsNullOrWhiteSpace($Format)) {
+    if (Test-Path -LiteralPath $effectiveSourcePath -PathType Leaf) {
+        $ext = [System.IO.Path]::GetExtension($effectiveSourcePath).TrimStart('.').ToLowerInvariant()
+        if ($ext -in @("exe", "cab")) {
+            $Format = $ext
+        }
+        else {
+            throw "Cannot detect Format from '$effectiveSourcePath'. Pass -Format exe or -Format cab."
+        }
+    }
+    else {
+        throw "When -SourcePath is a folder, pass -Format exe or -Format cab for catalog metadata."
+    }
+}
+
+Import-SourceIntoExtracted -SourcePath $effectiveSourcePath -ModelFolder $modelFolder -ExtractedFolder $extractedFolder -ResolvedFormat $Format -Force:$Force
 
 if (-not [string]::IsNullOrWhiteSpace($WinPESourcePath)) {
     Write-ImportLog "Copying WinPE drivers → WinPE\"
