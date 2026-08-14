@@ -30,6 +30,7 @@ LiteDeploy engine work integrates on a dedicated test branch, not on `main`.
 - Structured PreCheck / SelectWorkflow return contracts
 - `04-UiHost` — shared WPF chrome
 - Progress `09`, Credentials `10`
+- `ComputerSetup.DriveSelection` / `ComputerSetup.ImageEngine` (`Setup.exe` | `Dism.exe`) on share BootConfig
 
 ## Related
 
