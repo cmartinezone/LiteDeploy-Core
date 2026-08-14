@@ -36,6 +36,8 @@
         "ComputerNamePrefix": null,
         "MaxComputerNameLength": 15,
         "PromptForComputerDescription": true,
+        "DriveSelection": true,
+        "ImageEngine": "Setup.exe",
         "Language": "en-US",
         "KeyboardLocale": "0409:00000409",
         "TimeZone": "Eastern Standard Time"
@@ -68,6 +70,8 @@
         "ComputerNamePrefix": null,
         "MaxComputerNameLength": 15,
         "PromptForComputerDescription": true,
+        "DriveSelection": true,
+        "ImageEngine": "Setup.exe",
         "Language": "en-US",
         "KeyboardLocale": "0409:00000409",
         "TimeZone": "Eastern Standard Time"

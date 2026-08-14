@@ -46,3 +46,10 @@ Engine\Scripts\
 - Credentials stay on `BootObject` in the parent process; never written to state JSON.
 - This stub does **not** wipe disks, run Setup, or reboot.
 - Cancelled PreCheck or SelectWorkflow stops the engine with no destructive work.
+
+## BootConfig policy consumed via selection
+
+| Property | Purpose |
+| --- | --- |
+| `ComputerSetup.DriveSelection` | Whether SelectWorkflow showed a disk picker (`true`) or auto-selected the first disk (`false`). Stored on `DeploymentSelection.json`. |
+| `ComputerSetup.ImageEngine` | `Setup.exe` or `Dism.exe` — recorded for Phase B imaging; not executed on this branch yet. |

@@ -206,6 +206,8 @@ function Initialize-DeploymentStateStub {
         workflowId            = (Get-EngineProperty $Selection "WorkflowId")
         diskNumber            = (Get-EngineProperty $Selection "DiskNumber")
         diskModel             = [string](Get-EngineProperty $Selection "DiskModel")
+        driveSelection        = [bool](Get-EngineProperty $Selection "DriveSelection")
+        imageEngine           = [string](Get-EngineProperty $Selection "ImageEngine")
         driverFolderPath      = [string](Get-EngineProperty $Selection "DriverFolderPath")
         autoDetectDrivers     = [bool](Get-EngineProperty $Selection "AutoDetectDrivers")
         requiredCredentialIds = @()
@@ -213,6 +215,34 @@ function Initialize-DeploymentStateStub {
         deploymentType        = [string](Get-EngineProperty $BootObject "DeploymentType")
         networkPath           = [string](Get-EngineProperty $BootObject "NetworkPath")
         createdAtUtc          = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+    }
+
+    # Prefer selection payload; fall back to BootConfig.ComputerSetup when older UIs omit the fields.
+    if ([string]::IsNullOrWhiteSpace($selectionRecord.imageEngine)) {
+        $bootConfig = Get-EngineProperty $BootObject "Config"
+        $computerSetup = Get-EngineProperty $bootConfig "ComputerSetup"
+        $configuredEngine = Get-EngineProperty $computerSetup "ImageEngine"
+        if (-not [string]::IsNullOrWhiteSpace([string]$configuredEngine)) {
+            switch -Regex ([string]$configuredEngine.Trim()) {
+                '^(?i)setup(\.exe)?$' { $selectionRecord.imageEngine = 'Setup.exe' }
+                '^(?i)dism(\.exe)?$'  { $selectionRecord.imageEngine = 'Dism.exe' }
+                default { $selectionRecord.imageEngine = 'Setup.exe' }
+            }
+        } else {
+            $selectionRecord.imageEngine = 'Setup.exe'
+        }
+    }
+
+    $driveSelectionProp = Get-EngineProperty $Selection "DriveSelection"
+    if ($null -eq $driveSelectionProp) {
+        $bootConfig = Get-EngineProperty $BootObject "Config"
+        $computerSetup = Get-EngineProperty $bootConfig "ComputerSetup"
+        $configuredDriveSelection = Get-EngineProperty $computerSetup "DriveSelection"
+        if ($null -ne $configuredDriveSelection) {
+            $selectionRecord.driveSelection = [bool]$configuredDriveSelection
+        } else {
+            $selectionRecord.driveSelection = $true
+        }
     }
 
     $selectionPath = Join-Path $stateRoot "DeploymentSelection.json"

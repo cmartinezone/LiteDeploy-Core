@@ -72,6 +72,8 @@ LiteDeploy supports three distinct deployment modes:
 | **`ComputerSetup.ComputerNamePrefix`** | `String` / `null` | Prefix string prepended to computer names (e.g., `"DESK-"` or `null`). |
 | **`ComputerSetup.MaxComputerNameLength`** | `Integer` | Maximum character length limit for computer name (Default: `15`). |
 | **`ComputerSetup.PromptForComputerDescription`** | `Boolean` | Interactive prompt toggle for computer description. |
+| **`ComputerSetup.DriveSelection`** | `Boolean` | Show the SelectWorkflow target-disk picker (`true`) or auto-select the first internal disk (`false`). Default: `true`. |
+| **`ComputerSetup.ImageEngine`** | `String` | Imaging engine for Phase B: `"Setup.exe"` (Windows Setup) or `"Dism.exe"` (DISM apply). Default: `"Setup.exe"`. |
 | **`ComputerSetup.Language`** | `String` | System language locale code (Default: `"en-US"`). |
 | **`ComputerSetup.KeyboardLocale`** | `String` | Keyboard input locale code (Default: `"0409:00000409"`). |
 | **`ComputerSetup.TimeZone`** | `String` | System time zone identifier (Default: `"Eastern Standard Time"`). |

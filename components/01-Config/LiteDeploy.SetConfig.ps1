@@ -84,12 +84,23 @@ $PromptForComputerName        = $true                  # Prompt operator for com
 $ComputerNamePrefix           = $null                  # Optional computer name prefix (e.g. "DESK-", or null if none)
 $MaxComputerNameLength        = 15                     # Maximum allowed computer name character length (NetBIOS max 15)
 $PromptForComputerDescription = $true                  # Prompt operator for computer description during deployment
+$DriveSelection               = $true                  # Show target hard-drive picker in SelectWorkflow (false = auto-pick first disk)
+$ImageEngine                  = "Setup.exe"            # Imaging engine: Setup.exe (Windows Setup) or Dism.exe (DISM apply)
 $Language                     = "en-US"                # Default system language locale
 $KeyboardLocale               = "0409:00000409"        # Default keyboard layout / input locale (US English)
 $TimeZone                     = "Eastern Standard Time"# Default system time zone
 $AutoDetectDrivers            = $true                  # Auto-detect driver pack by WMI Make/Model
 $AllowManualSelection         = $true                  # Allow technician to manually select driver pack
 $AutoOnlineDownloadOnMedia    = $true                  # Enable on-the-fly driver downloading when on Media
+
+# Normalize / validate ImageEngine (case-insensitive input → canonical file name)
+switch -Regex ($ImageEngine.Trim()) {
+    '^(?i)setup(\.exe)?$' { $ImageEngine = 'Setup.exe' }
+    '^(?i)dism(\.exe)?$'  { $ImageEngine = 'Dism.exe' }
+    default {
+        throw "Invalid ImageEngine '$ImageEngine'. Allowed values: Setup.exe, Dism.exe."
+    }
+}
 
 
 # Determine effective Environment value ($null if omitted, or passed string)
@@ -179,6 +190,8 @@ if ($Mode -ne 'BootWim') {
         'ComputerNamePrefix'           = $ComputerNamePrefix
         'MaxComputerNameLength'        = $MaxComputerNameLength
         'PromptForComputerDescription' = $PromptForComputerDescription
+        'DriveSelection'               = [bool]$DriveSelection
+        'ImageEngine'                  = $ImageEngine
         'Language'                     = $Language
         'KeyboardLocale'               = $KeyboardLocale
         'TimeZone'                     = $TimeZone
@@ -220,6 +233,8 @@ if ($ConfigObject.Contains('ComputerSetup')) {
     Write-Host " CompNamePrefix   : $(if ($null -eq $ConfigObject.ComputerSetup.ComputerNamePrefix) { 'null' } else { $ConfigObject.ComputerSetup.ComputerNamePrefix })"
     Write-Host " MaxCompNameLen   : $($ConfigObject.ComputerSetup.MaxComputerNameLength)"
     Write-Host " PromptCompDesc   : $($ConfigObject.ComputerSetup.PromptForComputerDescription)"
+    Write-Host " DriveSelection   : $($ConfigObject.ComputerSetup.DriveSelection)"
+    Write-Host " ImageEngine      : $($ConfigObject.ComputerSetup.ImageEngine)"
     Write-Host " Language         : $($ConfigObject.ComputerSetup.Language)"
     Write-Host " KeyboardLocale   : $($ConfigObject.ComputerSetup.KeyboardLocale)"
     Write-Host " TimeZone         : $($ConfigObject.ComputerSetup.TimeZone)"

@@ -79,6 +79,8 @@ JSON parsing is strict. A missing or invalid configuration displays an alert and
 | `ComputerSetup.ComputerNamePrefix` | Empty | Prepopulates the computer-name input. |
 | `ComputerSetup.MaxComputerNameLength` | `15` | Sets input length and validation limit. |
 | `ComputerSetup.PromptForComputerDescription` | `true` | Shows or hides the description input. |
+| `ComputerSetup.DriveSelection` | `true` | Shows the target-disk picker; when `false`, the first internal disk is selected automatically. |
+| `ComputerSetup.ImageEngine` | `Setup.exe` | Imaging engine for later Phase B apply (`Setup.exe` or `Dism.exe`). Returned on the selection object. |
 | `Drivers.AutoDetectDrivers` | `true` | Enables manufacturer/model driver-pack detection. |
 | `Drivers.AllowManualSelection` | `true` | Enables the driver dropdown and **Select Folder** button. |
 | `Drivers.AutoOnlineDownloadOnMedia` | `true` | Makes online driver download available in Media mode. |
@@ -109,6 +111,11 @@ The current UI exposes these workflow tags:
 Parent categories automatically redirect selection to their first child so only deployable workflow entries are accepted.
 
 ### Target Hard Drive
+
+Controlled by `ComputerSetup.DriveSelection` (default `true`):
+
+- `true` — technician must select a disk from the grid.
+- `false` — the disk picker is hidden and the first detected internal disk is used automatically.
 
 Disk discovery follows this order:
 

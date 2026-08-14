@@ -292,7 +292,7 @@ $($buttonStyles.SecondaryButtonStyleXaml)
             <TextBlock Name="TxtWorkflowError" Foreground="#D13438" FontSize="11" Margin="2,-5,0,6" Height="14" Visibility="Hidden" TextWrapping="NoWrap" FontFamily="Segoe UI"/>
 
             <!-- SECTION 3: Hard Drive Selection -->
-            <Grid Margin="0,2,0,4" HorizontalAlignment="Stretch">
+            <Grid Name="HeaderDriveSelection" Margin="0,2,0,4" HorizontalAlignment="Stretch">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
@@ -301,7 +301,7 @@ $($buttonStyles.SecondaryButtonStyleXaml)
                 <Button Grid.Column="1" Name="BtnRefresh" Content="Refresh Disks" Style="{StaticResource ActionLinkStyle}"/>
             </Grid>
 
-            <Border Background="#FFFFFF" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4" Height="100" Margin="0,0,0,8" HorizontalAlignment="Stretch">
+            <Border Name="CardDriveSelection" Background="#FFFFFF" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4" Height="100" Margin="0,0,0,8" HorizontalAlignment="Stretch">
                 <DataGrid Name="GridDisks" AutoGenerateColumns="False" 
                           HeadersVisibility="Column" GridLinesVisibility="None" 
                           Background="White" BorderThickness="0" 
@@ -399,6 +399,8 @@ $btnNext                  = $window.FindName("BtnNext")
 $btnBack                  = $window.FindName("BtnBack")
 $btnRefresh               = $window.FindName("BtnRefresh")
 $txtHeader                = $window.FindName("TxtHeader")
+$headerDriveSelection     = $window.FindName("HeaderDriveSelection")
+$cardDriveSelection       = $window.FindName("CardDriveSelection")
 $gridDisks                = $window.FindName("GridDisks")
 $headerComputerID         = $window.FindName("HeaderComputerID")
 $cardComputerID           = $window.FindName("CardComputerID")
@@ -489,6 +491,8 @@ $promptComputerName = $true
 $maxNameLength      = 15
 $namePrefix         = ""
 $promptDescription  = $true
+$driveSelection     = $true
+$imageEngine        = "Setup.exe"
 
 $computerSetupConfig = Get-LiteDeployProperty $bootConfig "ComputerSetup"
 if ($null -ne $computerSetupConfig) {
@@ -496,6 +500,8 @@ if ($null -ne $computerSetupConfig) {
     $configuredMaxNameLength = Get-LiteDeployProperty $computerSetupConfig "MaxComputerNameLength"
     $configuredNamePrefix = Get-LiteDeployProperty $computerSetupConfig "ComputerNamePrefix"
     $configuredPromptDescription = Get-LiteDeployProperty $computerSetupConfig "PromptForComputerDescription"
+    $configuredDriveSelection = Get-LiteDeployProperty $computerSetupConfig "DriveSelection"
+    $configuredImageEngine = Get-LiteDeployProperty $computerSetupConfig "ImageEngine"
 
     if ($null -ne $configuredPromptComputerName) {
         $promptComputerName = [bool]$configuredPromptComputerName
@@ -508,6 +514,19 @@ if ($null -ne $computerSetupConfig) {
     }
     if ($null -ne $configuredPromptDescription) {
         $promptDescription = [bool]$configuredPromptDescription
+    }
+    if ($null -ne $configuredDriveSelection) {
+        $driveSelection = [bool]$configuredDriveSelection
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$configuredImageEngine)) {
+        switch -Regex ([string]$configuredImageEngine.Trim()) {
+            '^(?i)setup(\.exe)?$' { $imageEngine = 'Setup.exe' }
+            '^(?i)dism(\.exe)?$'  { $imageEngine = 'Dism.exe' }
+            default {
+                Write-Warning "Unknown ComputerSetup.ImageEngine '$configuredImageEngine'; defaulting to Setup.exe."
+                $imageEngine = 'Setup.exe'
+            }
+        }
     }
 }
 
@@ -561,6 +580,17 @@ if ($promptComputerName -or $promptDescription) {
     if ($null -ne $cardComputerID)         { $cardComputerID.Visibility         = [System.Windows.Visibility]::Collapsed }
     if ($null -ne $rowComputerName)        { $rowComputerName.Visibility        = [System.Windows.Visibility]::Collapsed }
     if ($null -ne $rowComputerDescription) { $rowComputerDescription.Visibility = [System.Windows.Visibility]::Collapsed }
+}
+
+# Apply DriveSelection policy (ComputerSetup.DriveSelection)
+if ($driveSelection) {
+    if ($null -ne $headerDriveSelection) { $headerDriveSelection.Visibility = [System.Windows.Visibility]::Visible }
+    if ($null -ne $cardDriveSelection)   { $cardDriveSelection.Visibility   = [System.Windows.Visibility]::Visible }
+    if ($null -ne $txtDiskError)         { $txtDiskError.Visibility         = [System.Windows.Visibility]::Hidden }
+} else {
+    if ($null -ne $headerDriveSelection) { $headerDriveSelection.Visibility = [System.Windows.Visibility]::Collapsed }
+    if ($null -ne $cardDriveSelection)   { $cardDriveSelection.Visibility   = [System.Windows.Visibility]::Collapsed }
+    if ($null -ne $txtDiskError)         { $txtDiskError.Visibility         = [System.Windows.Visibility]::Collapsed }
 }
 
 # Apply Manual Selection Settings
@@ -939,6 +969,8 @@ $script:SelectedDiskNumber = $null
 $script:SelectedDiskModel = ""
 $script:SelectedDriverFolderPath = ""
 $script:AutoDetectDrivers = $autoDetectDrivers
+$script:DriveSelection = [bool]$driveSelection
+$script:ImageEngine = [string]$imageEngine
 
 if ($null -ne $btnNext) {
     $btnNext.Add_Click({
@@ -995,27 +1027,47 @@ if ($null -ne $btnNext) {
             $script:SelectedOSName      = $selectedItem.Header.Name
         }
 
-        # 3. Validate Target Hard Drive Selection
-        $selectedDisk = $gridDisks.SelectedItem
-        if (-not $selectedDisk) {
-            if ($gridDisks.Items.Count -eq 0) {
-                $txtDiskError.Text = "No internal disks were detected. Load the storage driver and refresh."
-                $validationMessages += "- No internal disks were detected. Load the storage driver and refresh."
+        # 3. Validate Target Hard Drive Selection (or auto-pick when DriveSelection is false)
+        if ($driveSelection) {
+            $selectedDisk = $gridDisks.SelectedItem
+            if (-not $selectedDisk) {
+                if ($gridDisks.Items.Count -eq 0) {
+                    $txtDiskError.Text = "No internal disks were detected. Load the storage driver and refresh."
+                    $validationMessages += "- No internal disks were detected. Load the storage driver and refresh."
+                } else {
+                    $txtDiskError.Text = "Please select a target hard drive from the table above."
+                    $validationMessages += "- Select a target hard drive."
+                }
+                $txtDiskError.Visibility = [System.Windows.Visibility]::Visible
+                if ($null -eq $firstInvalidControl) { $firstInvalidControl = $gridDisks }
+                $hasError = $true
             } else {
-                $txtDiskError.Text = "Please select a target hard drive from the table above."
-                $validationMessages += "- Select a target hard drive."
+                $script:SelectedDiskIndex = $selectedDisk.Index
+                $script:SelectedDiskModel = $selectedDisk.Model
+                # Numeric DiskNumber is the execution identifier for the engine (not the display Index).
+                if ($selectedDisk.PSObject.Properties['DiskNumber']) {
+                    $script:SelectedDiskNumber = [int]$selectedDisk.DiskNumber
+                } else {
+                    $script:SelectedDiskNumber = $null
+                }
             }
-            $txtDiskError.Visibility = [System.Windows.Visibility]::Visible
-            if ($null -eq $firstInvalidControl) { $firstInvalidControl = $gridDisks }
-            $hasError = $true
         } else {
-            $script:SelectedDiskIndex = $selectedDisk.Index
-            $script:SelectedDiskModel = $selectedDisk.Model
-            # Numeric DiskNumber is the execution identifier for the engine (not the display Index).
-            if ($selectedDisk.PSObject.Properties['DiskNumber']) {
-                $script:SelectedDiskNumber = [int]$selectedDisk.DiskNumber
+            # Policy hides the picker: use the first detected internal disk.
+            $autoDisk = $null
+            if ($null -ne $gridDisks -and $gridDisks.Items.Count -gt 0) {
+                $autoDisk = $gridDisks.Items[0]
+            }
+            if (-not $autoDisk) {
+                $validationMessages += "- No internal disks were detected. Load the storage driver and retry."
+                $hasError = $true
             } else {
-                $script:SelectedDiskNumber = $null
+                $script:SelectedDiskIndex = $autoDisk.Index
+                $script:SelectedDiskModel = $autoDisk.Model
+                if ($autoDisk.PSObject.Properties['DiskNumber']) {
+                    $script:SelectedDiskNumber = [int]$autoDisk.DiskNumber
+                } else {
+                    $script:SelectedDiskNumber = $null
+                }
             }
         }
 
@@ -1117,6 +1169,8 @@ return [PSCustomObject]@{
     DiskNumber          = $script:SelectedDiskNumber
     DiskIndex           = $script:SelectedDiskIndex
     DiskModel           = [string]$script:SelectedDiskModel
+    DriveSelection      = [bool]$script:DriveSelection
+    ImageEngine         = [string]$script:ImageEngine
     DriverFolderPath    = [string]$script:SelectedDriverFolderPath
     AutoDetectDrivers   = [bool]$script:AutoDetectDrivers
 }
