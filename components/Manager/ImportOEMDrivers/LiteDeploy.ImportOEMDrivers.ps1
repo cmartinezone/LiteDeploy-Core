@@ -647,13 +647,18 @@ if (-not [string]::IsNullOrWhiteSpace($WinPESourcePath) -and -not (Test-Path -Li
 }
 
 $driversRoot = Join-Path $DeploymentRoot "Content\Drivers"
+$tempRoot = Join-Path $DeploymentRoot "Content\Temp"
 $catalogPath = Join-Path $driversRoot "catalog.json"
 $modelFolder = Join-Path $driversRoot (Join-Path $ManufacturerName $FolderName)
 $extractedFolder = Join-Path $modelFolder "Extracted"
 $winPeFolder = Join-Path $modelFolder "WinPE"
-$downloadStaging = Join-Path $modelFolder "_download"
+# Online packs and CAB expands stage under Content\Temp, then promote into Drivers\.
+$tempWorkRoot = Join-Path $tempRoot (Join-Path "ImportOEMDrivers" (Join-Path $ManufacturerName $ModelId))
+$downloadStaging = Join-Path $tempWorkRoot "Download"
+$extractStaging = Join-Path $tempWorkRoot "Extracted"
 
 Write-ImportLog "Deployment root : $DeploymentRoot"
+Write-ImportLog "Temp staging    : $tempWorkRoot"
 Write-ImportLog "Model folder    : $modelFolder"
 Write-ImportLog "Manufacturer    : $ManufacturerName ($ManufacturerId)"
 Write-ImportLog "Model           : $ModelName [$ModelId]"
@@ -670,33 +675,36 @@ if (-not $PSCmdlet.ShouldProcess($modelFolder, "Import OEM drivers and update ca
     return
 }
 
+if (-not (Test-Path -LiteralPath $tempRoot)) {
+    $null = New-Item -Path $tempRoot -ItemType Directory -Force
+}
 if (-not (Test-Path -LiteralPath $modelFolder)) {
     $null = New-Item -Path $modelFolder -ItemType Directory -Force
 }
 
-if ([string]::IsNullOrWhiteSpace($effectiveSourcePath)) {
+$sourceForImport = $effectiveSourcePath
+
+if ([string]::IsNullOrWhiteSpace($sourceForImport)) {
     $fileName = Get-DownloadFileName -Uri $downloadLinkValue -Format $Format
-    if (-not (Test-Path -LiteralPath $downloadStaging)) {
-        $null = New-Item -Path $downloadStaging -ItemType Directory -Force
-    }
+    Ensure-EmptyDirectory -Path $downloadStaging -Force:$Force
     $downloadTarget = Join-Path $downloadStaging $fileName
     Save-RemoteDriverPack -Uri $downloadLinkValue -Destination $downloadTarget -DeploymentRoot $DeploymentRoot -UseCurl:$UseCurl
-    $effectiveSourcePath = $downloadTarget
-    Write-ImportLog "Downloaded pack : $effectiveSourcePath" -ForegroundColor Green
+    $sourceForImport = $downloadTarget
+    Write-ImportLog "Downloaded pack : $sourceForImport" -ForegroundColor Green
 }
 
-if (-not (Test-Path -LiteralPath $effectiveSourcePath)) {
-    throw "SourcePath not found: $effectiveSourcePath"
+if (-not (Test-Path -LiteralPath $sourceForImport)) {
+    throw "SourcePath not found: $sourceForImport"
 }
 
 if ([string]::IsNullOrWhiteSpace($Format)) {
-    if (Test-Path -LiteralPath $effectiveSourcePath -PathType Leaf) {
-        $ext = [System.IO.Path]::GetExtension($effectiveSourcePath).TrimStart('.').ToLowerInvariant()
+    if (Test-Path -LiteralPath $sourceForImport -PathType Leaf) {
+        $ext = [System.IO.Path]::GetExtension($sourceForImport).TrimStart('.').ToLowerInvariant()
         if ($ext -in @("exe", "cab")) {
             $Format = $ext
         }
         else {
-            throw "Cannot detect Format from '$effectiveSourcePath'. Pass -Format exe or -Format cab."
+            throw "Cannot detect Format from '$sourceForImport'. Pass -Format exe or -Format cab."
         }
     }
     else {
@@ -704,7 +712,30 @@ if ([string]::IsNullOrWhiteSpace($Format)) {
     }
 }
 
-Import-SourceIntoExtracted -SourcePath $effectiveSourcePath -ModelFolder $modelFolder -ExtractedFolder $extractedFolder -ResolvedFormat $Format -Force:$Force
+# CAB/EXE files: expand or stage under Content\Temp, then promote into the model folder.
+if (Test-Path -LiteralPath $sourceForImport -PathType Leaf) {
+    $leaf = Split-Path -Leaf $sourceForImport
+    $archiveDest = Join-Path $modelFolder $leaf
+    Write-ImportLog "Keeping original pack in model folder: $archiveDest"
+    if ((Test-Path -LiteralPath $archiveDest) -and -not $Force) {
+        throw "Archive already exists: $archiveDest (use -Force to replace)."
+    }
+    Copy-Item -LiteralPath $sourceForImport -Destination $archiveDest -Force
+
+    if ($Format -eq "cab") {
+        Write-ImportLog "Extracting CAB under Content\Temp → $extractStaging"
+        Expand-CabToFolder -CabPath $sourceForImport -Destination $extractStaging -Force:$Force
+        Write-ImportLog "Promoting Temp extract → Extracted\"
+        Copy-DriverTree -Source $extractStaging -Destination $extractedFolder -Force:$Force
+    }
+    else {
+        Ensure-EmptyDirectory -Path $extractedFolder -Force:$Force
+        Write-ImportLog "EXE stored at model folder. Pass an extracted folder as -SourcePath to populate Extracted\, or extract the EXE under Content\Temp first." -ForegroundColor Yellow
+    }
+}
+else {
+    Import-SourceIntoExtracted -SourcePath $sourceForImport -ModelFolder $modelFolder -ExtractedFolder $extractedFolder -ResolvedFormat $Format -Force:$Force
+}
 
 if (-not [string]::IsNullOrWhiteSpace($WinPESourcePath)) {
     Write-ImportLog "Copying WinPE drivers → WinPE\"
