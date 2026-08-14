@@ -103,7 +103,7 @@ Forward-slash paths stored in JSON are repository-relative. Runtime code resolve
 
 ## 4. Operating-system catalog
 
-`components/Manager/ImportOSMedia/LiteDeploy.ImportOSMedia.ps1` (planned) already creates:
+`components/Manager/ImportOSMedia/LiteDeploy.ImportOSMedia.ps1` (planned) will create:
 
 ```text
 Content/OperatingSystems/<media-folder>/os.json

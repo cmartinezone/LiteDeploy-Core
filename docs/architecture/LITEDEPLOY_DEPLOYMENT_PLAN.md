@@ -68,7 +68,7 @@ The deployment engine must resolve sibling scripts from `$PSScriptRoot`. It must
 6. The deployment engine invokes workflow selection in the same process and passes `BootObject`.
 7. Workflow selection returns a structured selection object.
 8. If the technician cancels, the engine stops without changing a disk.
-9. The engine initializes deployment state and proceeds to Phase B (Setup `/NoReboot` — still stubbed on the orchestration test branch).
+9. The engine initializes deployment state and proceeds to Phase B (Setup `/NoReboot` — still stubbed on the `dev` branch).
 
 ### Phase B: validation, credentials, and Setup preparation
 

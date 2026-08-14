@@ -1,6 +1,6 @@
 # LiteDeploy Workflow Schema (reference)
 
-Status: **v1 reference contract** on the orchestrator branch.  
+Status: **v1 reference contract** on the `dev` branch.  
 Schemas and examples live under [`DeploymentShare/WorkFlows`](../../DeploymentShare/WorkFlows).
 
 Related: [LITEDEPLOY_CATALOG_WORKFLOW_SPEC.md](LITEDEPLOY_CATALOG_WORKFLOW_SPEC.md), [LITEDEPLOY_DEPLOYMENT_PLAN.md](LITEDEPLOY_DEPLOYMENT_PLAN.md).

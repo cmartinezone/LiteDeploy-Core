@@ -1,6 +1,6 @@
 # LiteDeploy Shared WPF UI Host
 
-Status: **Adopted on the engine-orchestration test branch.**  
+Status: **Adopted on the `dev` branch.**  
 Shared chrome only — not a merge of PreCheck, SelectWorkflow, and Progress.
 
 ## Goal
