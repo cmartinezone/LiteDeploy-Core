@@ -128,7 +128,7 @@ When `Deployment.Type` is `"Network"` and `NetworkPath` is configured, the scrip
 ## 5. Pure Native PowerShell Credential & Drive Mapping (`Z:\`)
 
 * **100% Pure PowerShell**: Uses native PowerShell cmdlets (`New-PSDrive` and `New-SmbMapping`) for persistent SMB mapping.
-* **Interactive Retry Loop**: Prompts for credentials via `Get-Credential`. If authentication fails, pops up a Windows Forms **Retry / Cancel** GUI dialog titled *"LiteDeploy - Authentication Failure"*. Clicking **Retry** re-prompts until successful or cancelled.
+* **Interactive Retry Loop**: Prompts for credentials via `Show-LiteDeployCredentialPrompt` in [UiHost](../UiHost) (Viewbox-scaled, show-password toggle, returns `PSCredential` / `SecureString`). If UiHost is not beside this script or WPF fails, falls back to native `Get-Credential`. If authentication fails, pops up a Windows Forms **Retry / Cancel** GUI dialog titled *"LiteDeploy - Authentication Failure"*. Clicking **Retry** re-prompts until successful or cancelled.
 * **Graceful Cancellation Guidance**: If the user closes or cancels any prompt, initialization pauses cleanly with clear console instructions:
   `[NOTICE] Deployment initialization paused.`
   `To restart this process, run 'startnet' below.`
@@ -183,6 +183,13 @@ Tests SMB TCP Port 445 server reachability with 5000ms timeout and `Test-Path` U
 ```powershell
 $shareInfo = Test-LiteDeployDeploymentShare -SharePath "\\Server\DeploymentShare$" -TimeoutMs 5000
 # Returns [PSCustomObject]@{ Reachable = $bool; Server = "Server" }
+```
+
+### `Get-LiteDeployShareCredential`
+Loads sibling `LiteDeploy.UiHost.ps1` when present and shows `Show-LiteDeployCredentialPrompt`. Falls back to `Get-Credential` if UiHost is missing or WPF is not STA.
+```powershell
+$cred = Get-LiteDeployShareCredential -NetworkPath "\\Server\DeploymentShare$"
+# Returns PSCredential, or $null / throws if the technician cancels
 ```
 
 ### `Connect-LiteDeployDeploymentShare`

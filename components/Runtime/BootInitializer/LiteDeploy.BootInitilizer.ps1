@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Discovers BootConfig.json using a 3-priority hierarchy, performs network pre-validations,
-    prompts for user credentials via native Get-Credential, maps deployment share Z:\ persistently,
+    prompts for user credentials via a Viewbox-scaled WPF dialog (Get-Credential fallback), maps deployment share Z:\ persistently,
     and launches LiteDeploy.DeploymentEngine.ps1 with the in-memory BootObject.
 
 .NOTES
@@ -89,6 +89,47 @@ function Format-LiteDeployUncPath {
         $clean = "\\$($clean.TrimStart('\'))"
     }
     return $clean.TrimEnd('\')
+}
+
+function Import-LiteDeployBootUiHost {
+    if (Get-Command Show-LiteDeployCredentialPrompt -ErrorAction SilentlyContinue) {
+        return $true
+    }
+    $candidates = @(
+        (Join-Path $PSScriptRoot "LiteDeploy.UiHost.ps1"),
+        (Join-Path $PSScriptRoot "..\UiHost\LiteDeploy.UiHost.ps1")
+    )
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+            try {
+                . (Resolve-Path -LiteralPath $candidate).Path
+                return [bool](Get-Command Show-LiteDeployCredentialPrompt -ErrorAction SilentlyContinue)
+            }
+            catch {
+                return $false
+            }
+        }
+    }
+    return $false
+}
+
+function Get-LiteDeployShareCredential {
+    param([string]$NetworkPath)
+
+    $message = "Enter credentials to connect the deployment share.`n$($NetworkPath)"
+    $title = "LiteDeploy - Deployment Share"
+    if (-not (Get-Command Show-LiteDeployCredentialPrompt -ErrorAction SilentlyContinue)) {
+        [void](Import-LiteDeployBootUiHost)
+    }
+    if (Get-Command Show-LiteDeployCredentialPrompt -ErrorAction SilentlyContinue) {
+        try {
+            return Show-LiteDeployCredentialPrompt -Message $message -Title $title
+        }
+        catch {
+            Write-LiteDeployLog " [WARNING] Credential prompt UI failed; using Get-Credential. $($_.Exception.Message)" -Level "WARNING" -ForegroundColor Yellow
+        }
+    }
+    return Get-Credential -Message $message -ErrorAction Stop
 }
 
 function Show-LiteDeployGuiError {
@@ -488,7 +529,7 @@ function Connect-LiteDeployDeploymentShare {
 
     while (-not $mounted) {
         try {
-            $userCred = Get-Credential -Message "Enter credentials to connect the deployment share.`n$($NetworkPath)" -ErrorAction Stop
+            $userCred = Get-LiteDeployShareCredential -NetworkPath $NetworkPath
         }
         catch {
             Write-LiteDeployLog "Deployment share authentication cancelled by user." -Level "WARNING" -ForegroundColor Yellow

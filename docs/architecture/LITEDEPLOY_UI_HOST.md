@@ -9,6 +9,7 @@ Reduce duplicated WPF bootstrap (themes, buttons, STA/assemblies, backdrop, mess
 
 ```text
 LiteDeploy.UiHost.ps1          Shared toolkit (dot-sourced)
+    ├── LiteDeploy.BootInitilizer.ps1     Share credential prompt (before Z: is mapped)
     ├── LiteDeploy.PreCheck.ps1           Returns structured PreCheck result
     ├── LiteDeploy.SelectWorkFlow.ps1     Returns structured selection
     └── LiteDeploy.Progress.ps1           Separate read-only process / state reader
@@ -32,6 +33,7 @@ LiteDeploy.UiHost.ps1          Shared toolkit (dot-sourced)
 5. Primary/secondary button Style XAML fragments  
 6. Message box helper (WinForms with WPF fallback)  
 7. Backdrop helper  
+8. Share credential prompt (`Show-LiteDeployCredentialPrompt` → `PSCredential`)  
 
 ## Not shared
 

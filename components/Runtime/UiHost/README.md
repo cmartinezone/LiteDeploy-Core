@@ -14,6 +14,7 @@ Dot-sourced toolkit used by PreCheck, SelectWorkflow, and Progress. It does **no
 | `Get-LiteDeployUiWindowSize` | Adaptive 4:3 window size for Viewbox hosts |
 | `Get-LiteDeployUiButtonStyleXaml` | Primary/secondary button Style fragments |
 | `Show-LiteDeployUiMessage` | WinForms or WPF message box |
+| `Show-LiteDeployCredentialPrompt` | Get-Credential-style share prompt (Viewbox + show password); returns `PSCredential` |
 | `New-LiteDeployUiBackdrop` / `Close-LiteDeployUiBackdrop` | Full-screen backdrop |
 | `ConvertTo-LiteDeployUiBrush` | Hex → WPF brush |
 | `Find-LiteDeployUiControl` | Named control lookup |
