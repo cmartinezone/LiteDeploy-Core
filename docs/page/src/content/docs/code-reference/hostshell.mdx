@@ -1,0 +1,18 @@
+---
+title: HostShell
+description: WinPE console geometry, theme, and presets.
+---
+
+**Script:** `components/Runtime/HostShell/LiteDeploy.HostShell.ps1`
+
+HostShell controls the classic console window in WinPE (position, size, frame, colors). It is conhost-only — window control is not reliable under Windows Terminal.
+
+BootInitializer dotsources it (when present) and minimizes the console before the engine UIs open.
+
+```powershell
+. "Z:\Engine\Scripts\LiteDeploy.HostShell.ps1"
+Set-HostShellTheme -Theme LiteDeploy -ClearScreen
+Set-HostShellWindow -Action Minimize
+```
+
+Named console themes (`LiteDeploy`, `Midnight`, `Ocean`, …) are separate from the WPF Light/Dark palette in [UiHost](/code-reference/uihost/).

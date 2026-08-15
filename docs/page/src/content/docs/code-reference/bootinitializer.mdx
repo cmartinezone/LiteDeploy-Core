@@ -1,0 +1,185 @@
+---
+title: BootInitializer
+description: WinPE parent process — discover BootConfig, validate the network, prompt for share credentials, map Z:, start the engine.
+---
+
+**Script:** `components/Runtime/BootInitializer/LiteDeploy.BootInitilizer.ps1`  
+**Environment:** WinPE 5.1 / 10 / 11 and Windows host  
+**PowerShell:** 5.1, `Set-StrictMode -Version 2.0`
+
+`LiteDeploy.BootInitilizer.ps1` is the first LiteDeploy script after `startnet`. It discovers `BootConfig.json`, validates the network when Type is Network, prompts for share credentials, maps `Z:`, promotes the loaded-environment config, and launches `LiteDeploy.DeploymentEngine.ps1` with an in-memory `BootObject`.
+
+The WinPE ISO or `Boot.wim` is built with [WinPEBuilder](https://github.com/cmartinezone/WinPEBuilder).
+
+## Why this script is self-contained
+
+The deployment share — and therefore [UiHost](/code-reference/uihost/) and [LogWriter](/code-reference/logwriter/) — is not available until after `Connect-LiteDeployDeploymentShare` succeeds.
+
+Boot-time helpers live in this file:
+
+- `Write-LiteDeployLog` → `X:\~LiteDeploy\WorkLogs\`
+- `Show-LiteDeployCredentialPrompt` → Viewbox WPF dialog, Light/Dark
+
+After `Z:` is mapped, the engine UIs load UiHost from `Engine\Scripts`.
+
+## Execution flow
+
+```text
+startnet (powershell.exe -STA)
+    │
+    ▼
+Get-LiteDeployBootConfig
+    │
+    ├─ Priority 1: $env:SystemDrive  (WIM bootstrap)
+    └─ Priority 2: USB / optical     (if not in RAM)
+    │
+    ├─ Type = Media ──► find USB/ISO with Content\ ──► promote runtime BootConfig
+    │
+    └─ Type = Network
+           │
+           ├─ 1. NIC / driver
+           ├─ 2. Cable link
+           ├─ 3. IPv4 / IPv6 (30s, early exit)
+           ├─ 4. SMB 445 to NetworkPath
+           └─ Connect-LiteDeployDeploymentShare
+                  │
+                  ├─ already mapped? reuse
+                  └─ Show-LiteDeployCredentialPrompt → New-PSDrive Z: -Persist
+    │
+    ▼
+Promote Z:\Config\BootConfig.json (or USB Config)
+    │
+    ▼
+& DeploymentEngine.ps1 -BootObject $bootObj
+```
+
+Cancel or close a prompt pauses cleanly:
+
+```text
+ [NOTICE]  Deployment initialization paused.
+           To restart this process, run 'startnet' below.
+```
+
+## Configuration discovery
+
+`Get-LiteDeployBootConfig` does not scan internal SATA / NVMe / RAID disks. That avoids picking up leftover configs from a previous OS install.
+
+| Priority | Scope | What it is |
+| --- | --- | --- |
+| 1 | WinPE RAM (`$env:SystemDrive`) | Bootstrap `BootConfig.json` (Type + NetworkPath, optional `Ui.Theme`) |
+| 2 | Loaded environment | After mount or USB discovery, **promote** the full runtime `BootConfig.json`. `BootObject.DeploymentRoot` is the folder that contains `Content\`. |
+
+Downstream scripts consume the promoted in-memory config — not the boot-image copy.
+
+## Network pre-validation
+
+When `Deployment.Type` is `Network` and `NetworkPath` is set:
+
+1. **NIC** — `Get-NetAdapter` and `.NET` `NetworkInterface`. Prefers a link-up adapter. Failure: Retry/Cancel *Network Driver Missing* (`wpeutil InitializeNetwork` on Retry).
+2. **Cable** — media connected / operational up. Failure: *Network Cable Disconnected*.
+3. **IP** — poll up to 30 seconds; skip loopback, APIPA, IPv6 link-local; exit as soon as an address appears. Failure: *IP Address Assignment Failed*.
+4. **Share** — normalize UNC (`/` or `\`), TCP 445 with 5000 ms timeout, `Test-Path` fallback. Failure: *Server Unreachable*.
+
+## Credentials and `Z:`
+
+- Native PowerShell only: `New-PSDrive` and `New-SmbMapping`.
+- Prompt: boot-local `Show-LiteDeployCredentialPrompt` (Viewbox, Show/Hide password, `PSCredential` / `SecureString`). Fallback: `Get-Credential` if WPF or STA is missing.
+- Theme: `-Theme Light|Dark` from `Resolve-LiteDeployUiTheme` (preferred key `Ui.Theme`).
+- Auth failure: WinForms Retry/Cancel *Authentication Failure*.
+- `-Persist` registers the SMB session with the Windows MPR / WNet driver so child processes inherit `Z:\`.
+
+Password is never logged.
+
+## Function reference
+
+### `Write-LiteDeployLog`
+
+Console plus CMTrace XML and NDJSON under `X:\~LiteDeploy\WorkLogs\`.
+
+```powershell
+Write-LiteDeployLog -Message "IP Address Assigned: 192.168.1.50" -Level "SUCCESS" -ForegroundColor Green -Component "BootInitilizer"
+```
+
+### `Format-LiteDeployUncPath`
+
+```powershell
+Format-LiteDeployUncPath -Path "//Server/DeploymentShare$/"
+# \\Server\DeploymentShare$
+```
+
+### `Show-LiteDeployCredentialPrompt`
+
+Boot-local WPF dialog. Same contract as `Get-Credential`. `-Theme Light|Dark` (default Light).
+
+### `Resolve-LiteDeployUiTheme`
+
+Reads `Light` / `Dark` from BootConfig. Preferred: `Ui.Theme`. Also accepts `Metadata.Theme`, `Startup.Theme`, or top-level `Theme`. Missing or invalid → `Light`.
+
+Bootstrap theme paints the pre-mount dialog. After promote, the loaded-environment theme is stored on `BootObject.Theme`.
+
+### `Get-LiteDeployShareCredential`
+
+Calls the local prompt. Falls back to `Get-Credential`.
+
+```powershell
+$cred = Get-LiteDeployShareCredential -NetworkPath "\\Server\DeploymentShare$" -Theme Light
+```
+
+### `Connect-LiteDeployDeploymentShare`
+
+Retry loop, pipeline leak suppression, `Z:` mapping.
+
+```powershell
+$mountRes = Connect-LiteDeployDeploymentShare -NetworkPath "\\Server\DeploymentShare$" -DriveLetter "Z:" -Theme Light -ShowGuiError
+# Mounted, DriveLetter, NetworkPath, Credential
+```
+
+### `Get-LiteDeployBootConfig`
+
+Primary discovery. After the source is loaded, `Config` / `ConfigPath` are the **runtime** BootConfig.
+
+```powershell
+$bootObj = Get-LiteDeployBootConfig -ConfigPath "" -MountShare -ShowGuiError
+# Config, ConfigPath, DeploymentRoot, DriveLetter, EngineScriptPath, Credential, Theme, …
+```
+
+### Network helpers
+
+| Function | Returns |
+| --- | --- |
+| `Test-LiteDeployNetworkHardware` | `AdapterFound`, `AdapterName`, `IsLinkConnected` |
+| `Test-LiteDeployIPAddress` | `IPAddress`, `IPv4Address`, `IPv6Address`, `HasValidIP` |
+| `Test-LiteDeployDeploymentShare` | `Reachable`, `Server` |
+| `Resolve-LiteDeployEnginePath` | Path to `LiteDeploy.DeploymentEngine.ps1` |
+| `Show-LiteDeployGuiError` | WinForms Retry/OK; `$true` if Retry |
+
+## Standalone launch
+
+When executed directly (not dot-sourced):
+
+1. Run `Get-LiteDeployBootConfig`.
+2. Log to `LiteDeploy.Execution.log` and `.json`.
+3. If the engine script is missing: GUI *Script Missing* and pause.
+4. If present: load HostShell, minimize the console, `& $enginePath -BootObject $bootObj`.
+5. Restore the console on completion or error.
+
+STA is required. `startnet` should launch `powershell.exe -STA`. UiHost will not relaunch when `BootObject` is bound.
+
+## Logging tags
+
+| Tag | Meaning | CMTrace type |
+| --- | --- | --- |
+| `[INIT]` | WinPE setup, power plan | 1 |
+| `[CHECK]` | Discovery / pre-validation | 1 |
+| `[SUCCESS]` | Found / connected | 1 |
+| `[INFO]` | Mode, paths, theme | 1 |
+| `[WARNING]` | Recoverable | 2 |
+| `[RETRY]` | Re-scan or re-prompt | 2 |
+| `[ERROR]` | Stop or auth failure | 3 |
+
+## Related
+
+- [Architecture](/code-reference/architecture/)
+- [Deployment Engine](/code-reference/deployment-engine/)
+- [BootConfig](/code-reference/bootconfig/)
+- [Getting started](/guides/getting-started/)

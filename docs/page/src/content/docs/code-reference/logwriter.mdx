@@ -1,0 +1,22 @@
+---
+title: LogWriter
+description: Shared CMTrace + NDJSON logger used after the environment is loaded.
+---
+
+**Script:** `components/Runtime/LogWriter/LiteDeploy.LogWriter.ps1`
+
+LogWriter is the shared logger for engine UIs and later stages. [BootInitializer](/code-reference/bootinitializer/) cannot load it at boot time, so it ships its own `Write-LiteDeployLog` with the same file targets.
+
+## Outputs
+
+| Target | Path |
+| --- | --- |
+| Console | Color-coded host text |
+| CMTrace XML | `$env:SystemDrive\~LiteDeploy\WorkLogs\LiteDeploy.Execution.log` |
+| NDJSON | `$env:SystemDrive\~LiteDeploy\WorkLogs\LiteDeploy.Execution.json` |
+
+```powershell
+Write-LiteDeployLog -Message "Partitioning Disk 0 (GPT)..." -Level "INFO" -Component "FormatDisk"
+```
+
+CMTrace types: `1` info/success, `2` warning/retry, `3` error.

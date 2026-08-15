@@ -1,0 +1,28 @@
+---
+title: Dev Branch
+description: Where LiteDeploy integrates, and how feature PRs should land.
+---
+
+Engine and Manager/Runtime work integrates on **`dev`**, not on `main`.
+
+| Branch | Role |
+| --- | --- |
+| `main` | Stable product baseline |
+| `dev` | Integration branch |
+
+## PR rules
+
+1. Feature PRs target **`dev`**.
+2. Promote to `main` only when a vertical slice is intentionally ready (`dev` → `main`).
+3. If something lands on `main` by accident, revert `main` and keep the work on `dev`.
+
+## What is on `dev` today
+
+- Manager + Runtime layout
+- BootInitializer → DeploymentEngine → PreCheck / SelectWorkflow
+- Share credential prompt (local to BootInitializer) with Light/Dark
+- Loaded-environment BootConfig promotion
+- WinPEEnv test harness
+- OEM catalog import / sync (Dell, HP, Lenovo)
+
+Setup `/NoReboot` and FullOS resume are not implemented yet.

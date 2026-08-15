@@ -1,0 +1,89 @@
+---
+title: Architecture & Design
+description: How Manager, Runtime, BootConfig, and the WinPE process model fit together.
+---
+
+LiteDeploy is a PowerShell 5.1 / WinPE platform. The GUI is WPF. Configuration is JSON. The compiled product is a set of sibling scripts under `Engine\Scripts\`, not a single merged file.
+
+## High-level
+
+```text
+┌─────────────────────────────────────────────┐
+│              Manager (admin PC)             │
+│  BootConfig · OEM packs · share ACL · media │
+└──────────────────────┬──────────────────────┘
+                       │ DeploymentShare / USB
+                       ▼
+┌─────────────────────────────────────────────┐
+│           WinPE  (startnet -STA)            │
+│                                             │
+│  BootInitializer ──► DeploymentEngine       │
+│       │                    │                │
+│       │                    ├─ PreCheck      │
+│       │                    ├─ SelectWorkflow│
+│       │                    └─ state stub    │
+│       │                                     │
+│       └─ local log + credential prompt      │
+│                                             │
+│  Progress (separate process, read-only)     │
+└─────────────────────────────────────────────┘
+```
+
+## Repository layout
+
+```text
+LiteDeploy-Core/
+  components/
+    Manager/          Admin / authoring
+    Runtime/          WinPE / FullOS execution
+    Shared/           OemDriverPacks
+  DeploymentShare/    Share skeleton (Content, WorkFlows)
+  tests/WinPEEnv/     Generated WinPE + share layout
+  docs/
+    architecture/     Long-form design notes
+    page/             This Starlight site
+```
+
+Production **file names** stay the same (`LiteDeploy.PreCheck.ps1`, and so on). Folder names under `components/` are for Core development only.
+
+## Process model
+
+1. `startnet` launches `powershell.exe -STA -File LiteDeploy.BootInitilizer.ps1`.
+2. BootInitializer stays the parent process. The share `PSCredential` never leaves that process.
+3. It calls `LiteDeploy.DeploymentEngine.ps1 -BootObject $bootObj` in the **same** process (`&`, not `Start-Process`).
+4. The engine calls PreCheck, then SelectWorkflow. Those UIs **return** structured objects. They do not start the next screen.
+5. Progress is a separate read-only process that polls `DeploymentState.json`.
+
+UiHost must not relaunch into a new process when `BootObject` is bound — that would drop the in-memory credential.
+
+## BootConfig is not a traveling blob
+
+The WIM `BootConfig` is a **footprint** of how we booted (Type / NetworkPath). After the source is loaded, the engine and UIs consume the **deployment** `Config\BootConfig.json`.
+
+State JSON holds hardware and selections. It never holds a credential.
+
+## Why BootInitializer cannot use UiHost
+
+BootInitializer runs **before** `Z:` exists. LogWriter and UiHost live on the share (`Engine\Scripts`). Same reason logging is a local `Write-LiteDeployLog` in the boot script.
+
+After mount, PreCheck / SelectWorkflow / Progress dot-source UiHost from the share.
+
+## Device chain (as-built vs planned)
+
+```text
+startnet
+  → BootInitializer          implemented
+  → DeploymentEngine         Phase A
+       → PreCheck            implemented
+       → SelectWorkflow      implemented
+       → Setup /NoReboot     planned
+  → Progress                 implemented (host)
+  → WinPECT / FullOS resume  planned
+```
+
+## Related
+
+- [BootInitializer](/code-reference/bootinitializer/)
+- [Deployment Engine](/code-reference/deployment-engine/)
+- [UiHost](/code-reference/uihost/)
+- [BootConfig](/code-reference/bootconfig/)

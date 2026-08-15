@@ -1,0 +1,30 @@
+---
+title: Manager Overview
+description: Admin-side tools that prepare BootConfig, the share, and OEM driver packs.
+---
+
+Manager scripts run on an administrator workstation. They prepare content that Runtime consumes.
+
+| Component | Job |
+| --- | --- |
+| Config | Generate `BootConfig.json` for BootWim, DeploymentShare, and Media |
+| DeploymentShareACL | Folders, SMB, NTFS log isolation |
+| ImportOEMDrivers | Local / `-DownloadLink` / CSV into `Content/Drivers` + catalog |
+| SyncOEMDrivers | Check or update Dell, HP, Lenovo packs |
+| ImportOSMedia | Planned OS catalog for SelectWorkflow |
+| OemDriverPacks | Shared catalog helpers (Manager + Media download) |
+
+Online catalogs are **Dell, HP, and Lenovo only**. CSV import is a scaffold / allow-list; Sync fills packs.
+
+Match keys:
+
+- Dell: SystemSKU
+- HP: BaseBoardProduct
+- Lenovo: MTM first 4 characters
+
+WinPE drivers are a catalog model: `Content/Drivers/<Mfr>/WinPE/Extracted/` (`modelId: winpe`, `role: winpe`).
+
+## Related
+
+- [BootConfig](/code-reference/bootconfig/)
+- [SelectWorkflow](/code-reference/select-workflow/)

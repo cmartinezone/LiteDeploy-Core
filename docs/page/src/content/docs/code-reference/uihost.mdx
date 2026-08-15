@@ -1,0 +1,38 @@
+---
+title: UiHost
+description: Shared WPF chrome for PreCheck, SelectWorkflow, and Progress — after the share is mapped.
+---
+
+**Script:** `components/Runtime/UiHost/LiteDeploy.UiHost.ps1`
+
+UiHost is a dot-sourced toolkit. It does not replace the three screens.
+
+```text
+LiteDeploy.UiHost.ps1          after Z: is mapped
+    ├── LiteDeploy.PreCheck.ps1
+    ├── LiteDeploy.SelectWorkFlow.ps1
+    └── LiteDeploy.Progress.ps1
+```
+
+[BootInitializer](/code-reference/bootinitializer/) does **not** load this file. The share does not exist yet.
+
+## What it shares
+
+| Helper | Purpose |
+| --- | --- |
+| `Initialize-LiteDeployUiHost` | Assemblies, software render, optional STA guard |
+| `Get-LiteDeployUiThemePalette` | Light/Dark hex (+ brushes) |
+| `Get-LiteDeployUiWindowSize` | Adaptive size for Viewbox hosts |
+| `Get-LiteDeployUiButtonStyleXaml` | Primary/secondary button styles |
+| `Show-LiteDeployUiMessage` | WinForms or WPF message box |
+| `Show-LiteDeployCredentialPrompt` | Post-mount credential dialog (`-Theme Light\|Dark`) |
+| `New-LiteDeployUiBackdrop` | Full-screen backdrop |
+
+STA relaunch is aborted when `BootObject` is bound so the in-memory credential is not discarded.
+
+## Production
+
+Copy `LiteDeploy.UiHost.ps1` to `Engine\Scripts\` beside the UI scripts. Callers resolve:
+
+1. `$PSScriptRoot\LiteDeploy.UiHost.ps1`
+2. `$PSScriptRoot\..\UiHost\LiteDeploy.UiHost.ps1` (Core repo)

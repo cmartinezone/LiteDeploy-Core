@@ -1,0 +1,62 @@
+---
+title: Deployment Engine
+description: WinPE orchestrator — PreCheck, SelectWorkflow, and state stub. Setup is not implemented yet.
+---
+
+**Script:** `components/Runtime/DeploymentEngine/LiteDeploy.DeploymentEngine.ps1`  
+**Status:** Phase A scaffold on `dev`
+
+BootInitializer calls the engine after the deployment source is mapped:
+
+```text
+BootInitializer
+    → LiteDeploy.DeploymentEngine.ps1 -BootObject $bootObj
+        → LiteDeploy.PreCheck.ps1
+        → LiteDeploy.SelectWorkFlow.ps1
+        → DeploymentSelection.json + DeploymentState.json
+        → (not yet) Setup /NoReboot, WinPECT, reboot
+```
+
+PreCheck and SelectWorkflow **return** to the engine. They do not launch each other.
+
+`BootObject` must already contain the loaded-environment `Config`, `ConfigPath`, and `DeploymentRoot`. The engine does not re-read the boot-WIM `BootConfig.json`.
+
+## Parameters
+
+| Parameter | Purpose |
+| --- | --- |
+| `-BootObject` | In-memory payload from BootInitializer (config, `DeploymentRoot`, share `PSCredential`) |
+| `-Resume` | Planned FullOS resume; returns `NotImplemented` |
+| `-StatePath` | Planned path for resume state |
+
+## Theme
+
+The engine resolves `BootObject.Theme` (or `Ui.Theme` on the promoted config) and passes `-Theme` to PreCheck and SelectWorkflow.
+
+## Safety
+
+- Credentials stay on `BootObject` in the parent process. They are never written to state JSON.
+- Phase A does **not** wipe disks, run Setup, or reboot.
+- Cancelled PreCheck or SelectWorkflow stops the engine with no destructive work.
+
+## Production layout
+
+Promote as siblings under the share:
+
+```text
+Engine\Scripts\
+  LiteDeploy.BootInitilizer.ps1
+  LiteDeploy.DeploymentEngine.ps1
+  LiteDeploy.PreCheck.ps1
+  LiteDeploy.SelectWorkFlow.ps1
+  LiteDeploy.SelecWorkflowDriverPicker.ps1
+  LiteDeploy.OemDriverPackCatalog.ps1
+  LiteDeploy.UiHost.ps1
+  LiteDeploy.Progress.ps1
+```
+
+## Related
+
+- [BootInitializer](/code-reference/bootinitializer/)
+- [PreCheck](/code-reference/precheck/)
+- [SelectWorkflow](/code-reference/select-workflow/)
