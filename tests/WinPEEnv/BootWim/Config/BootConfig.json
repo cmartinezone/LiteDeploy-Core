@@ -1,0 +1,8 @@
+{
+  "$schemaVersion": "1.0",
+  "Deployment": {
+    "Type": "Media",
+    "LocalRootName": "~LiteDeploy"
+  },
+  "_Comments": "Harness bootstrap only (WinPE Boot.wim contract). Type + LocalRootName. Full policy lives on Share\\Config\\BootConfig.json."
+}

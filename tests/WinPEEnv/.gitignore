@@ -1,0 +1,7 @@
+# Generated promote output — run Sync-WinPETestEnv.ps1 after component changes
+Share/Engine/Scripts/*.ps1
+Share/Content/
+Share/WorkFlows/
+Share/WorkLogs/
+Share/Engine/Tools/
+BootWim/WorkLogs/

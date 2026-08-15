@@ -59,3 +59,4 @@ startnet
 - New WinPE/FullOS execution work → `Runtime/`.
 - Keep production script names unchanged.
 - `experiments/` is not part of Manager or Runtime and does not promote.
+- Workstation layout emulator: [tests/WinPEEnv](../tests/WinPEEnv/) (`Sync-WinPETestEnv.ps1` copies Runtime + Shared into `Share\Engine\Scripts`).

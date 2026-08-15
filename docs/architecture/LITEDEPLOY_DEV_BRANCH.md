@@ -34,6 +34,7 @@ LiteDeploy engine and Manager/Runtime work integrates on **`dev`**, not on `main
 - `ComputerSetup.DriveSelection` / `ComputerSetup.ImageEngine` on BootConfig  
 - `Drivers.AutoOnlineDownloadOnMedia` / `Drivers.CheckOnlineUpdateOnMedia` (Media pack download + update alert, after confirm)  
 - `BootObject.DeploymentRoot` + promoted runtime `BootConfig` from the loaded share/USB (not the boot WIM)  
+- `tests/WinPEEnv/` — generated WinPE + share layout (`Sync-WinPETestEnv.ps1` / `Start-WinPETestEnv.ps1`)  
 - Workflow v1 schema + Standard / Intune examples under `DeploymentShare/WorkFlows`
 - Drivers catalog v1 (`manufacturerId` / `systemSku` / `Extracted` + WinPE model) under `DeploymentShare/Content/Drivers`
 

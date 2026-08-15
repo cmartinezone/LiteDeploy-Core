@@ -68,6 +68,7 @@ LiteDeploy Core/
     Runtime/                  WinPE / FullOS execution
     Shared/                   Cross-cutting helpers (OemDriverPacks)
   DeploymentShare/            Initial deployment-share folder layout
+  tests/WinPEEnv/             Generated WinPE + share layout (sync after component changes)
   docs/architecture/          Product design, diagrams, and status
   experiments/                Historical and scratch scripts; not shippable
 ```
