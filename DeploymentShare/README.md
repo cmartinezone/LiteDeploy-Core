@@ -30,7 +30,7 @@ DeploymentShare\
     Temp\
       README.md
       ImportOEMDrivers\     # pack download + CAB extract staging
-      OemCatalogs\          # future vendor catalog CAB/XML cache
+      OemCatalogs\          # Dell/HP/Lenovo vendor catalog CAB/XML cache (SyncOEMDrivers / Media)
     Unattend\
   Engine\
     Scripts\
@@ -52,4 +52,4 @@ Approved Core scripts promote into `Engine\Scripts`. [WinPEBuilder](https://gith
 
 [LiteDeploy.SetDeploymentShareAcl.ps1](../components/Manager/DeploymentShareACL/LiteDeploy.SetDeploymentShareAcl.ps1) applies SMB and NTFS permissions onto a provisioned copy of this tree.
 
-OS and package catalogs remain placeholders until ImportOSMedia / package publishing. Workflow and drivers catalogs are v1 reference contracts — see [LITEDEPLOY_WORKFLOW_SCHEMA.md](../docs/architecture/LITEDEPLOY_WORKFLOW_SCHEMA.md) and [LITEDEPLOY_DRIVERS_CATALOG.md](../docs/architecture/LITEDEPLOY_DRIVERS_CATALOG.md).
+OS and package catalogs remain placeholders until ImportOSMedia / package publishing. Workflow and drivers catalogs are v1 reference contracts — see [LITEDEPLOY_WORKFLOW_SCHEMA.md](../docs/architecture/LITEDEPLOY_WORKFLOW_SCHEMA.md), [LITEDEPLOY_DRIVERS_CATALOG.md](../docs/architecture/LITEDEPLOY_DRIVERS_CATALOG.md), and [LITEDEPLOY_OEM_CATALOG_SYNC.md](../docs/architecture/LITEDEPLOY_OEM_CATALOG_SYNC.md).

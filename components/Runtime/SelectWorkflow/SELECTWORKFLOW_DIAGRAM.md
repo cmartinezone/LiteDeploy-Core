@@ -31,8 +31,8 @@ flowchart TD
     end
 
     subgraph Discovery ["3. Hardware and Driver Discovery"]
-        Policy --> Computer["Read manufacturer and model through CIM/WMI"]
-        Computer --> DriverMatch{"Matching Content\\Drivers pack exists?"}
+        Policy --> Computer["Read manufacturer, model, SystemSKU<br/>BaseBoardProduct / Lenovo MTM"]
+        Computer --> DriverMatch{"catalog.json or Content\\Drivers pack?"}
         DriverMatch -- Yes --> LocalDriver["Select detected local driver pack"]
         DriverMatch -- No --> DriverFallback["Select online or in-box fallback"]
         LocalDriver --> Disks["Discover non-USB internal disks"]
@@ -62,7 +62,10 @@ flowchart TD
         Inline --> Dialog["Show consolidated warning dialog"]
         Dialog --> Focus["Focus first invalid control"]
         Focus --> Inputs
-        Validate -- Yes --> Confirm["Show deployment summary confirmation"]
+        Validate -- Yes --> MediaAct{"Media online download / update check?"}
+        MediaAct -- Yes --> PackAct["Invoke-MediaOemDriverPackAction<br/>download missing or alert if newer"]
+        PackAct --> Confirm["Show deployment summary confirmation"]
+        MediaAct -- No --> Confirm
         Confirm --> Proceed{"Technician selects Yes?"}
         Proceed -- No --> Inputs
         Proceed -- Yes --> Save["Store selected values in script scope"]
@@ -80,20 +83,26 @@ flowchart TD
 ```mermaid
 flowchart TD
     Start["Resolve driver choice"] --> Auto{"AutoDetectDrivers enabled?"}
-    Auto -- Yes --> Detect["Look for Content\\Drivers\\Manufacturer\\Model"]
+    Auto -- Yes --> Detect["Match catalog.json by SystemSKU/model<br/>or Content\\Drivers\\Manufacturer\\Model"]
     Auto -- No --> Default["Standard Windows in-box drivers"]
-    Detect --> Match{"Matching folder found?"}
+    Detect --> Match{"Local pack found?"}
     Match -- Yes --> Local["Auto-Detect local driver pack"]
-    Match -- No --> Media{"Deployment.Type is Media<br/>and online download enabled?"}
-    Media -- Yes --> Online["Online Download"]
+    Match -- No --> Media{"Deployment.Type is Media<br/>and AutoOnlineDownloadOnMedia?"}
+    Media -- Yes --> Online["Online Download option"]
     Media -- No --> Default
-    Local --> Manual{"Technician selects a custom folder?"}
-    Online --> Manual
+    Local --> CheckUp{"CheckOnlineUpdateOnMedia<br/>and Dell/HP/Lenovo?"}
+    CheckUp -- Yes --> Compare["On Start: compare online version<br/>alert if newer; confirm to replace"]
+    CheckUp -- No --> Manual
+    Online --> Download["On Start: download pack onto media<br/>same Content\\Drivers layout"]
+    Download --> Manual{"Technician selects a custom folder?"}
+    Compare --> Manual
     Default --> Manual
     Manual -- Yes --> Picker["Open WinPE WPF folder picker"]
     Picker --> Custom["Use selected filesystem path"]
     Manual -- No --> Selected["Keep automatically selected choice"]
 ```
+
+Shared helpers: [`LiteDeploy.OemDriverPackCatalog.ps1`](../../Shared/OemDriverPacks/LiteDeploy.OemDriverPackCatalog.ps1).
 
 ---
 

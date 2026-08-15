@@ -11,11 +11,12 @@ LiteDeployManager (admin)          LiteDeployRuntime (device)
 ─────────────────────────          ──────────────────────────
 Config → BootConfig.json           BootInitializer (startnet)
 DeploymentShareACL                 DeploymentEngine
-ImportOSMedia (planned)              → PreCheck
-                                     → SelectWorkflow
-WinPEBuilder (separate repo)         → Setup /NoReboot (planned)
-DeploymentShare/ (share skeleton)  Progress | Credentials / WinPECT
-                                   LogWriter | HostShell | UiHost
+ImportOEMDrivers                     → PreCheck
+SyncOEMDrivers                       → SelectWorkflow (+ Media OEM pack)
+ImportOSMedia (planned)              → Setup /NoReboot (planned)
+Shared/OemDriverPacks              Progress | Credentials / WinPECT
+WinPEBuilder (separate repo)       LogWriter | HostShell | UiHost
+DeploymentShare/ (share skeleton)
 ```
 
 ## Manager
@@ -24,8 +25,10 @@ DeploymentShare/ (share skeleton)  Progress | Credentials / WinPECT
 | --- | --- | --- |
 | [Config](components/Manager/Config) | Generates `BootConfig.json` for BootWim, DeploymentShare, and Media | Exists |
 | [DeploymentShareACL](components/Manager/DeploymentShareACL) | Share folders, SMB, and NTFS log isolation | Exists |
-| [ImportOEMDrivers](components/Manager/ImportOEMDrivers) | Imports OEM packs into `Content/Drivers` + catalog | Exists |
+| [ImportOEMDrivers](components/Manager/ImportOEMDrivers) | Local/`-DownloadLink`/CSV import into `Content/Drivers` + catalog | Exists |
+| [SyncOEMDrivers](components/Manager/SyncOEMDrivers) | `-CheckStatus` / `-Update All\|"Model"\|"sku"` vs Dell/HP/Lenovo pack catalogs | Exists |
 | [ImportOSMedia](components/Manager/ImportOSMedia) | Publishes OS catalog for SelectWorkflow / engine | Placeholder |
+| [OemDriverPacks](components/Shared/OemDriverPacks) | Shared Dell/HP/Lenovo catalog helpers (Manager + Media) | Exists |
 | [WinPEBuilder](https://github.com/cmartinezone/WinPEBuilder) | Builds boot ISO or `Boot.wim` for WDS/PXE | Separate repo |
 | [DeploymentShare](DeploymentShare) | Initial deployment-share folder layout | Exists |
 
@@ -36,7 +39,7 @@ DeploymentShare/ (share skeleton)  Progress | Credentials / WinPECT
 | [BootInitializer](components/Runtime/BootInitializer) | Discovers config, maps `Z:\`, builds `BootObject`, starts DeploymentEngine | Exists |
 | [DeploymentEngine](components/Runtime/DeploymentEngine) | Orchestrates PreCheck → SelectWorkflow → Setup (Setup stubbed) | Scaffold |
 | [PreCheck](components/Runtime/PreCheck) | Nine-point readiness UI; returns structured result | Exists |
-| [SelectWorkflow](components/Runtime/SelectWorkflow) | Computer, workflow, disk, and driver UI; returns structured selection | Exists |
+| [SelectWorkflow](components/Runtime/SelectWorkflow) | Computer, workflow, disk, and driver UI; Media online pack download / update alert | Exists |
 | [Progress](components/Runtime/Progress) | Reads `DeploymentState.json` and renders progress | Exists |
 | [LogWriter](components/Runtime/LogWriter) | CMTrace + NDJSON logging | Exists |
 | [HostShell](components/Runtime/HostShell) | WinPE console geometry, theme, and presets | Exists |
@@ -63,6 +66,7 @@ LiteDeploy Core/
   components/
     Manager/                  Admin / authoring
     Runtime/                  WinPE / FullOS execution
+    Shared/                   Cross-cutting helpers (OemDriverPacks)
   DeploymentShare/            Initial deployment-share folder layout
   docs/architecture/          Product design, diagrams, and status
   experiments/                Historical and scratch scripts; not shippable
@@ -85,6 +89,7 @@ These stay in their own GitHub repos. LiteDeploy Core consumes them; it does not
 - [Deployment plan](docs/architecture/LITEDEPLOY_DEPLOYMENT_PLAN.md)
 - [Workflow schema](docs/architecture/LITEDEPLOY_WORKFLOW_SCHEMA.md)
 - [Drivers catalog](docs/architecture/LITEDEPLOY_DRIVERS_CATALOG.md)
+- [OEM catalog sync](docs/architecture/LITEDEPLOY_OEM_CATALOG_SYNC.md)
 - [Dev branch](docs/architecture/LITEDEPLOY_DEV_BRANCH.md)
 - [UiHost](docs/architecture/LITEDEPLOY_UI_HOST.md)
 - [Components](components/README.md)

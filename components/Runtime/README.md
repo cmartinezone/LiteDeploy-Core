@@ -7,7 +7,7 @@ Device-side components for WinPE and FullOS. Promote approved scripts as sibling
 | [BootInitializer](BootInitializer/) | Exists |
 | [DeploymentEngine](DeploymentEngine/) | Scaffold (Phase A) |
 | [PreCheck](PreCheck/) | Exists |
-| [SelectWorkflow](SelectWorkflow/) | Exists |
+| [SelectWorkflow](SelectWorkflow/) | Exists — Media online OEM pack download / update alert |
 | [Progress](Progress/) | Exists |
 | [LogWriter](LogWriter/) | Exists |
 | [HostShell](HostShell/) | Exists |
