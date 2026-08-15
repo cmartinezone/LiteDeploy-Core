@@ -4,8 +4,13 @@
 
 .DESCRIPTION
     Discovers BootConfig.json using a 3-priority hierarchy, performs network pre-validations,
-    prompts for user credentials via native Get-Credential, maps deployment share Z:\ persistently,
-    and launches LiteDeploy.DeploymentEngine.ps1 with the in-memory BootObject.
+    prompts for share credentials with a local Viewbox-scaled WPF dialog (Get-Credential fallback),
+    maps deployment share Z:\ persistently, and launches LiteDeploy.DeploymentEngine.ps1
+    with the in-memory BootObject.
+
+    Boot-time helpers (Write-LiteDeployLog, Show-LiteDeployCredentialPrompt) live in this
+    script. The deployment share — and therefore UiHost / LogWriter — is not available
+    until after Connect-LiteDeployDeploymentShare succeeds.
 
 .NOTES
     Compatible with Set-StrictMode 2.0 and WinPE 5.1/10/11.
@@ -89,6 +94,231 @@ function Format-LiteDeployUncPath {
         $clean = "\\$($clean.TrimStart('\'))"
     }
     return $clean.TrimEnd('\')
+}
+
+function ConvertTo-LiteDeploySecureString {
+    param([string]$PlainText = "")
+
+    $secure = New-Object System.Security.SecureString
+    if (-not [string]::IsNullOrEmpty($PlainText)) {
+        foreach ($ch in $PlainText.ToCharArray()) {
+            $secure.AppendChar($ch)
+        }
+    }
+    $secure.MakeReadOnly()
+    return $secure
+}
+
+function ConvertFrom-LiteDeploySecureString {
+    param([System.Security.SecureString]$Secure)
+
+    if ($null -eq $Secure -or $Secure.Length -eq 0) { return "" }
+    $ptr = [System.IntPtr]::Zero
+    try {
+        $ptr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($Secure)
+        return [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
+    }
+    finally {
+        if ($ptr -ne [System.IntPtr]::Zero) {
+            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
+        }
+    }
+}
+
+function Show-LiteDeployCredentialPrompt {
+    <#
+    .SYNOPSIS
+        Boot-local share credential dialog. Returns PSCredential (SecureString password).
+        Self-contained: the deployment share and UiHost are not available until after mount.
+    #>
+    [CmdletBinding()]
+    param(
+        [string]$Message = "Enter credentials to connect the deployment share.",
+        [string]$Title = "LiteDeploy - Deployment Share",
+        [string]$UserName = ""
+    )
+
+    if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Threading.ApartmentState]::STA) {
+        throw "Show-LiteDeployCredentialPrompt requires an STA thread (startnet should launch powershell.exe -STA)."
+    }
+
+    Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Xaml -ErrorAction Stop
+    try {
+        [System.Windows.Media.RenderOptions]::ProcessRenderMode = [System.Windows.Interop.RenderMode]::SoftwareOnly
+    }
+    catch {}
+
+    $screenHeight = 768
+    try {
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+        if ([System.Windows.Forms.Screen]::PrimaryScreen) {
+            $screenHeight = [int][System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Height
+        }
+    }
+    catch {}
+    $height = [Math]::Min(480, [Math]::Max(300, [int]($screenHeight * 0.38)))
+    $width = [int]($height * 460 / 280)
+
+    $escapedMessage = [System.Security.SecurityElement]::Escape($Message)
+    $escapedTitle = [System.Security.SecurityElement]::Escape($Title)
+    $escapedUser = [System.Security.SecurityElement]::Escape($UserName)
+
+    [xml]$xaml = @"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="$escapedTitle"
+        Width="$width" Height="$height"
+        MinWidth="360" MinHeight="260"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        WindowStyle="SingleBorderWindow"
+        Background="#F4F6F8"
+        Topmost="True"
+        ShowInTaskbar="False">
+    <Viewbox Stretch="Uniform">
+        <Grid Width="440" Height="248" Margin="20,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Text="Connect to deployment share" FontSize="16" FontWeight="SemiBold"
+                       Foreground="#1B3A4B" FontFamily="Segoe UI" Margin="0,0,0,8"/>
+            <TextBlock Grid.Row="1" Name="TxtMessage" Text="$escapedMessage" TextWrapping="Wrap"
+                       FontSize="12" Foreground="#4A5B67" FontFamily="Segoe UI" Margin="0,0,0,14"/>
+            <StackPanel Grid.Row="2" Margin="0,0,0,10">
+                <TextBlock Text="User name" FontSize="11" Foreground="#4A5B67" Margin="0,0,0,4" FontFamily="Segoe UI"/>
+                <TextBox Name="TxtUserName" Height="30" FontSize="13" Padding="6,4" FontFamily="Segoe UI"
+                         Text="$escapedUser"/>
+            </StackPanel>
+            <StackPanel Grid.Row="3" Margin="0,0,0,8">
+                <TextBlock Text="Password" FontSize="11" Foreground="#4A5B67" Margin="0,0,0,4" FontFamily="Segoe UI"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <PasswordBox Grid.Column="0" Name="PwdPassword" Height="30" FontSize="13" Padding="6,4"
+                                 FontFamily="Segoe UI"/>
+                    <TextBox Grid.Column="0" Name="TxtPasswordReveal" Height="30" FontSize="13" Padding="6,4"
+                             FontFamily="Segoe UI" Visibility="Collapsed"/>
+                    <Button Grid.Column="1" Name="BtnReveal" Width="56" Height="30" Margin="8,0,0,0"
+                            Content="Show" FontSize="11" FontFamily="Segoe UI"
+                            ToolTip="Show or hide password" Cursor="Hand"/>
+                </Grid>
+            </StackPanel>
+            <TextBlock Grid.Row="4" Name="TxtError" Foreground="#D13438" FontSize="11" Height="16"
+                       Visibility="Hidden" FontFamily="Segoe UI"/>
+            <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Name="BtnCancel" Content="Cancel" Width="88" Height="30" Margin="0,0,8,0" IsCancel="True"
+                        FontSize="12" FontFamily="Segoe UI"/>
+                <Button Name="BtnOk" Content="OK" Width="88" Height="30" IsDefault="True"
+                        FontSize="12" FontWeight="SemiBold" FontFamily="Segoe UI"/>
+            </StackPanel>
+        </Grid>
+    </Viewbox>
+</Window>
+"@
+
+    $reader = New-Object System.Xml.XmlNodeReader $xaml
+    $window = [Windows.Markup.XamlReader]::Load($reader)
+    $txtUser = $window.FindName("TxtUserName")
+    $pwdBox = $window.FindName("PwdPassword")
+    $txtReveal = $window.FindName("TxtPasswordReveal")
+    $btnReveal = $window.FindName("BtnReveal")
+    $btnOk = $window.FindName("BtnOk")
+    $btnCancel = $window.FindName("BtnCancel")
+    $txtError = $window.FindName("TxtError")
+
+    $script:LiteDeployCredRevealOn = $false
+    $script:LiteDeployCredResult = $null
+
+    $hideError = {
+        $txtError.Visibility = [System.Windows.Visibility]::Hidden
+        $txtError.Text = ""
+    }
+
+    $btnReveal.add_Click({
+        if (-not $script:LiteDeployCredRevealOn) {
+            $txtReveal.Text = ConvertFrom-LiteDeploySecureString -Secure $pwdBox.SecurePassword
+            $pwdBox.Visibility = [System.Windows.Visibility]::Collapsed
+            $txtReveal.Visibility = [System.Windows.Visibility]::Visible
+            $btnReveal.Content = "Hide"
+            $script:LiteDeployCredRevealOn = $true
+            $txtReveal.Focus()
+        }
+        else {
+            $pwdBox.Password = $txtReveal.Text
+            $txtReveal.Clear()
+            $txtReveal.Visibility = [System.Windows.Visibility]::Collapsed
+            $pwdBox.Visibility = [System.Windows.Visibility]::Visible
+            $btnReveal.Content = "Show"
+            $script:LiteDeployCredRevealOn = $false
+            $pwdBox.Focus()
+        }
+    }.GetNewClosure())
+
+    $accept = {
+        $user = ([string]$txtUser.Text).Trim()
+        if ([string]::IsNullOrWhiteSpace($user)) {
+            $txtError.Text = "User name is required."
+            $txtError.Visibility = [System.Windows.Visibility]::Visible
+            $txtUser.Focus()
+            return
+        }
+        $secure = $null
+        if ($script:LiteDeployCredRevealOn) {
+            $secure = ConvertTo-LiteDeploySecureString -PlainText ([string]$txtReveal.Text)
+            $txtReveal.Clear()
+        }
+        else {
+            $secure = $pwdBox.SecurePassword.Copy()
+        }
+        $script:LiteDeployCredResult = New-Object System.Management.Automation.PSCredential ($user, $secure)
+        $window.DialogResult = $true
+    }.GetNewClosure()
+
+    $btnOk.add_Click($accept)
+    $btnCancel.add_Click({
+        $txtReveal.Clear()
+        $window.DialogResult = $false
+    }.GetNewClosure())
+    $txtUser.add_TextChanged($hideError)
+
+    $window.add_Loaded({
+        if ([string]::IsNullOrWhiteSpace([string]$txtUser.Text)) { $txtUser.Focus() }
+        else { $pwdBox.Focus() }
+    }.GetNewClosure())
+
+    $ok = $false
+    try {
+        $ok = [bool]$window.ShowDialog()
+    }
+    finally {
+        $txtReveal.Clear()
+    }
+
+    if ($ok -and $script:LiteDeployCredResult) {
+        return $script:LiteDeployCredResult
+    }
+    return $null
+}
+
+function Get-LiteDeployShareCredential {
+    param([string]$NetworkPath)
+
+    $message = "Enter credentials to connect the deployment share.`n$($NetworkPath)"
+    $title = "LiteDeploy - Deployment Share"
+    try {
+        return Show-LiteDeployCredentialPrompt -Message $message -Title $title
+    }
+    catch {
+        Write-LiteDeployLog " [WARNING] Credential prompt UI failed; using Get-Credential. $($_.Exception.Message)" -Level "WARNING" -ForegroundColor Yellow
+        return Get-Credential -Message $message -ErrorAction Stop
+    }
 }
 
 function Show-LiteDeployGuiError {
@@ -488,7 +718,7 @@ function Connect-LiteDeployDeploymentShare {
 
     while (-not $mounted) {
         try {
-            $userCred = Get-Credential -Message "Enter credentials to connect the deployment share.`n$($NetworkPath)" -ErrorAction Stop
+            $userCred = Get-LiteDeployShareCredential -NetworkPath $NetworkPath
         }
         catch {
             Write-LiteDeployLog "Deployment share authentication cancelled by user." -Level "WARNING" -ForegroundColor Yellow

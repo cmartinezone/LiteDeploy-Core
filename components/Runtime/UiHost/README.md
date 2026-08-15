@@ -3,7 +3,9 @@
 **Script:** `LiteDeploy.UiHost.ps1`  
 **Plan:** [LITEDEPLOY_UI_HOST.md](../../../docs/architecture/LITEDEPLOY_UI_HOST.md)
 
-Dot-sourced toolkit used by PreCheck, SelectWorkflow, and Progress. It does **not** replace those screens.
+Dot-sourced toolkit used by PreCheck, SelectWorkflow, and Progress **after** the deployment share (or USB/ISO root) is available. It does **not** replace those screens.
+
+BootInitializer cannot load this file: the share is not mounted yet. Its credential dialog and logger live in `LiteDeploy.BootInitilizer.ps1`.
 
 ## What it shares
 
@@ -14,6 +16,7 @@ Dot-sourced toolkit used by PreCheck, SelectWorkflow, and Progress. It does **no
 | `Get-LiteDeployUiWindowSize` | Adaptive 4:3 window size for Viewbox hosts |
 | `Get-LiteDeployUiButtonStyleXaml` | Primary/secondary button Style fragments |
 | `Show-LiteDeployUiMessage` | WinForms or WPF message box |
+| `Show-LiteDeployCredentialPrompt` | Post-mount Get-Credential-style prompt (Viewbox + show password); returns `PSCredential`. Boot-time share auth uses the BootInitializer copy. |
 | `New-LiteDeployUiBackdrop` / `Close-LiteDeployUiBackdrop` | Full-screen backdrop |
 | `ConvertTo-LiteDeployUiBrush` | Hex → WPF brush |
 | `Find-LiteDeployUiControl` | Named control lookup |
