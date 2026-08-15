@@ -20,7 +20,7 @@ So: learn *where* catalogs live from FFU; **do not** copy their per-driver downl
 | --- | --- |
 | Pack download (`-DownloadLink`) | Implemented (`ImportOEMDrivers`) |
 | Manual supported-models CSV | Implemented (`-ModelsCsvPath`) |
-| Online vendor **catalog** sync + status/update | `SyncOEMDrivers` — `-CheckStatus` compares versions; `-CheckUpdate` downloads newer packs (URL from OEM catalog); `-Update*` also auto-resolves URLs |
+| Online vendor **catalog** sync + status/update | `SyncOEMDrivers` — `-CheckStatus` compares/shows versions; `-UpdateAll` / `-Model` / `-SystemSku` download, replace `Extracted\`, update `catalog.json` (pack URL from OEM catalog) |
 
 ## Manager CLI: SyncOEMDrivers
 
@@ -68,16 +68,17 @@ Typical columns:
 
 Without `-ModelsCsvPath`, vendor-only “new” rows are **not** dumped (indexes are huge). Pass CSV to surface **new** models/SKUs.
 
-### `-CheckUpdate`
+### `-UpdateAll` / `-Model` / `-SystemSku`
 
-Same compare as `-CheckStatus`, then downloads every FullOS model with `UpdateAvailable`.  
-Pack URL is resolved from the OEM catalog (no need for a stored `downloadLink`).
+Download the pack (URL from OEM catalog when `downloadLink` is missing), **replace** `Extracted\`, and **update** `catalog.json` (version + link) via `ImportOEMDrivers`.
 
 ```powershell
-.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -CheckUpdate -Force
+.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -UpdateAll -Force
+.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -Model "Latitude 7450" -Force
+.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -SystemSku "0C09" -Force
 ```
 
-Re-download packs into the deployment share for matching catalog rows that have a `downloadLink` (calls `ImportOEMDrivers`).
+`-UpdateAll` targets FullOS models with `UpdateAvailable` (from the same compare used by `-CheckStatus`).
 
 ```powershell
 # Everything with a downloadLink under the share catalog
@@ -180,5 +181,5 @@ Content\Drivers\
 
 1. ~~CLI surface: `-CheckStatus` / `-Update*` / Temp OemCatalogs refresh~~  
 2. ~~Version compare (local `version` vs pack catalog) + outline `OnlineVersion`~~  
-3. ~~`-CheckUpdate` + auto-resolve pack URL from catalog when `downloadLink` missing~~  
+3. ~~`-Update*` auto-resolve pack URL, download, replace, update catalog~~  
 4. Prefer WinPE-type packs for the WinPE model compare (optional)

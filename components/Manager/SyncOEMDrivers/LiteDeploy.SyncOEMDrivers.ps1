@@ -5,9 +5,10 @@
 .DESCRIPTION
     Manager tool. Refreshes vendor driver-pack catalogs under Content\Temp\OemCatalogs\,
     compares them to Content\Drivers\catalog.json, and prints a shell status table.
-    -CheckStatus only reports. -CheckUpdate downloads packs that are newer online
-    (pack URL resolved from the vendor catalog when downloadLink is missing).
-    -UpdateAll / -Model / -SystemSku also auto-resolve pack URLs from the catalog.
+
+    -CheckStatus  → compare only (show LocalVersion vs OnlineVersion).
+    -UpdateAll / -Model / -SystemSku → download pack (URL from OEM catalog when needed),
+    replace Extracted content, and update catalog.json via ImportOEMDrivers.
 
 .PARAMETER DeploymentRoot
     Deployment share root.
@@ -15,18 +16,15 @@
 .PARAMETER CheckStatus
     Compare local catalog to vendor pack catalogs and print a table (no download).
 
-.PARAMETER CheckUpdate
-    Compare like -CheckStatus, then download every FullOS model with Status UpdateAvailable
-    using the online pack URL from the vendor catalog.
-
 .PARAMETER UpdateAll
-    Re-download matching local catalog models (auto-resolves pack URL when needed).
+    Download newer packs for FullOS models with UpdateAvailable (URL from OEM catalog),
+    replace Extracted\, update catalog.json.
 
 .PARAMETER Model
-    Update models whose name or modelId matches this string (case-insensitive substring).
+    Download/replace the matching model (name or modelId substring).
 
 .PARAMETER SystemSku
-    Update models that list this SystemSKU / Machine Type.
+    Download/replace models that list this SystemSKU / Machine Type.
 
 .PARAMETER ManufacturerName
     Optional friendly manufacturer filter (e.g. Dell).
@@ -50,17 +48,21 @@
     Pass through to ImportOEMDrivers on update.
 
 .PARAMETER Force
-    Pass -Force to ImportOEMDrivers on update.
+    Pass -Force to ImportOEMDrivers (replace existing Extracted content).
 
 .EXAMPLE
+    # Compare only — show what is newer online
     .\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -CheckStatus
 
 .EXAMPLE
-    # Compare and download newer packs (URL from OEM catalog)
-    .\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -CheckUpdate -Force
+    # Download/replace every model that has a newer pack online
+    .\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -UpdateAll -Force
 
 .EXAMPLE
-    .\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -UpdateAll -ManufacturerName Dell -Force
+    .\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -Model "Latitude 7450" -Force
+
+.EXAMPLE
+    .\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -SystemSku "0C09" -Force
 #>
 
 [CmdletBinding(SupportsShouldProcess = $true, DefaultParameterSetName = "CheckStatus")]
@@ -70,9 +72,6 @@ param(
 
     [Parameter(Mandatory = $true, ParameterSetName = "CheckStatus")]
     [switch]$CheckStatus,
-
-    [Parameter(Mandatory = $true, ParameterSetName = "CheckUpdate")]
-    [switch]$CheckUpdate,
 
     [Parameter(Mandatory = $true, ParameterSetName = "UpdateAll")]
     [switch]$UpdateAll,
@@ -90,11 +89,9 @@ param(
     [string]$ManufacturerId = "",
 
     [Parameter(Mandatory = $false, ParameterSetName = "CheckStatus")]
-    [Parameter(Mandatory = $false, ParameterSetName = "CheckUpdate")]
     [string]$ModelsCsvPath = "",
 
     [Parameter(Mandatory = $false, ParameterSetName = "CheckStatus")]
-    [Parameter(Mandatory = $false, ParameterSetName = "CheckUpdate")]
     [ValidateSet(",", ";", "`t")]
     [string]$CsvDelimiter = ",",
 
@@ -105,13 +102,11 @@ param(
     [ValidateRange(1, 365)]
     [int]$MaxCatalogAgeDays = 7,
 
-    [Parameter(Mandatory = $false, ParameterSetName = "CheckUpdate")]
     [Parameter(Mandatory = $false, ParameterSetName = "UpdateAll")]
     [Parameter(Mandatory = $false, ParameterSetName = "UpdateModel")]
     [Parameter(Mandatory = $false, ParameterSetName = "UpdateSku")]
     [switch]$UseCurl,
 
-    [Parameter(Mandatory = $false, ParameterSetName = "CheckUpdate")]
     [Parameter(Mandatory = $false, ParameterSetName = "UpdateAll")]
     [Parameter(Mandatory = $false, ParameterSetName = "UpdateModel")]
     [Parameter(Mandatory = $false, ParameterSetName = "UpdateSku")]
@@ -859,7 +854,7 @@ $localModels = @(Get-LocalDriverModels `
         -ManufacturerNameFilter $ManufacturerName `
         -ManufacturerIdFilter $ManufacturerId)
 
-if ($PSCmdlet.ParameterSetName -in @("CheckStatus", "CheckUpdate")) {
+if ($PSCmdlet.ParameterSetName -eq "CheckStatus") {
     $csvResolved = ""
     if (-not [string]::IsNullOrWhiteSpace($ModelsCsvPath)) {
         $csvResolved = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ModelsCsvPath)
@@ -882,98 +877,85 @@ if ($PSCmdlet.ParameterSetName -in @("CheckStatus", "CheckUpdate")) {
     $updates = @($statusRows | Where-Object { $_.Status -eq "UpdateAvailable" })
     if ($updates.Count -gt 0) {
         Write-Host ""
-        Write-SyncLog "Newer packs online:" -ForegroundColor Yellow
+        Write-SyncLog "Newer packs online (use -UpdateAll / -Model / -SystemSku to download):" -ForegroundColor Yellow
         $updates | Format-Table -AutoSize Manufacturer, Model, SystemSku, LocalVersion, OnlineVersion, OnlineDate, VendorUrl
     }
 
-    if ($PSCmdlet.ParameterSetName -eq "CheckStatus") {
-        return [pscustomobject]@{
-            CatalogPath = $catalogPath
-            OemCatalogs = $oemCatalogsRoot
-            Rows        = $statusRows
-            Summary     = @($summary)
-        }
-    }
-
-    # -CheckUpdate: download every UpdateAvailable FullOS model using catalog URL.
-    if (-not (Test-Path -LiteralPath $importScript -PathType Leaf)) {
-        throw "ImportOEMDrivers script not found: $importScript"
-    }
-    if ($updates.Count -eq 0) {
-        Write-SyncLog "No UpdateAvailable models to download." -ForegroundColor Green
-        return [pscustomobject]@{
-            CatalogPath = $catalogPath
-            Rows        = $statusRows
-            Updated     = @()
-        }
-    }
-
-    Write-SyncLog ("CheckUpdate downloading {0} newer pack(s)..." -f $updates.Count) -ForegroundColor Cyan
-    $results = foreach ($row in $updates) {
-        $local = $localModels | Where-Object {
-            $_.ModelId -eq $row.ModelId -or (
-                $_.ModelName -eq $row.Model -and $_.ManufacturerName -eq $row.Manufacturer
-            )
-        } | Select-Object -First 1
-        if (-not $local) {
-            Write-SyncLog "Skip (local model not found): $($row.Manufacturer) / $($row.Model)" -ForegroundColor DarkYellow
-            continue
-        }
-        Invoke-ModelPackUpdate `
-            -LocalModel $local `
-            -DeploymentRoot $DeploymentRoot `
-            -ImportScript $importScript `
-            -VendorMap $vendorMap `
-            -ResolvedDownloadLink $row.VendorUrl `
-            -ResolvedVersion $row.OnlineVersion `
-            -UseCurl:$UseCurl `
-            -Force:$Force
-    }
-    $results | Format-Table -AutoSize
     return [pscustomobject]@{
         CatalogPath = $catalogPath
+        OemCatalogs = $oemCatalogsRoot
         Rows        = $statusRows
-        Updated     = @($results)
+        Summary     = @($summary)
     }
 }
 
-# Update modes
+# Update modes: download + replace Extracted + update catalog.json
 if (-not (Test-Path -LiteralPath $importScript -PathType Leaf)) {
     throw "ImportOEMDrivers script not found: $importScript"
 }
 
-$targets = @($localModels)
+$statusRows = @(New-StatusRows -LocalModels $localModels -VendorMap $vendorMap -AllowList @())
+$statusByKey = @{}
+foreach ($row in $statusRows) {
+    $key = "{0}|{1}" -f $row.Manufacturer, $row.ModelId
+    $statusByKey[$key] = $row
+}
+
+$targets = @()
 switch ($PSCmdlet.ParameterSetName) {
     "UpdateModel" {
         $targets = @($localModels | Where-Object {
-                $_.ModelName -like "*$Model*" -or $_.ModelId -like "*$Model*"
+                $_.Role -ne "winpe" -and
+                -not [string]::Equals([string]$_.ModelId, "winpe", [StringComparison]::OrdinalIgnoreCase) -and
+                ($_.ModelName -like "*$Model*" -or $_.ModelId -like "*$Model*")
             })
     }
     "UpdateSku" {
         $want = $SystemSku.Trim().ToUpperInvariant()
         $targets = @($localModels | Where-Object {
-                @($_.SystemSku | ForEach-Object { $_.ToUpperInvariant() }) -contains $want
+                $_.Role -ne "winpe" -and
+                -not [string]::Equals([string]$_.ModelId, "winpe", [StringComparison]::OrdinalIgnoreCase) -and
+                (@($_.SystemSku | ForEach-Object { $_.ToUpperInvariant() }) -contains $want)
             })
     }
     "UpdateAll" {
-        $targets = @($localModels | Where-Object {
-                $_.Role -ne "winpe" -and -not [string]::Equals([string]$_.ModelId, "winpe", [StringComparison]::OrdinalIgnoreCase)
-            })
+        # Only models that have a newer pack online (or missing content with a catalog URL).
+        $targets = foreach ($local in $localModels) {
+            if ($local.Role -eq "winpe" -or [string]::Equals([string]$local.ModelId, "winpe", [StringComparison]::OrdinalIgnoreCase)) {
+                continue
+            }
+            $key = "{0}|{1}" -f $local.ManufacturerName, $local.ModelId
+            $row = $statusByKey[$key]
+            if ($null -eq $row) { continue }
+            if ($row.Status -in @("UpdateAvailable", "MissingContent") -and -not [string]::IsNullOrWhiteSpace($row.VendorUrl)) {
+                $local
+            }
+            elseif ($row.Status -eq "UpdateAvailable") {
+                $local
+            }
+        }
+        $targets = @($targets)
     }
 }
 
 if ($targets.Count -eq 0) {
-    Write-SyncLog "No matching local catalog models to update." -ForegroundColor DarkYellow
+    Write-SyncLog "No matching models to update (CheckStatus for UpdateAvailable rows)." -ForegroundColor DarkYellow
     return
 }
 
-Write-SyncLog ("Update candidates: {0}" -f $targets.Count)
+Write-SyncLog ("Update candidates: {0} (download → replace Extracted → update catalog)" -f $targets.Count)
 $results = foreach ($t in $targets) {
+    $key = "{0}|{1}" -f $t.ManufacturerName, $t.ModelId
+    $row = $statusByKey[$key]
+    $resolvedUrl = if ($row) { [string]$row.VendorUrl } else { "" }
+    $resolvedVer = if ($row) { [string]$row.OnlineVersion } else { "" }
     Invoke-ModelPackUpdate `
         -LocalModel $t `
         -DeploymentRoot $DeploymentRoot `
         -ImportScript $importScript `
         -VendorMap $vendorMap `
+        -ResolvedDownloadLink $resolvedUrl `
+        -ResolvedVersion $resolvedVer `
         -UseCurl:$UseCurl `
         -Force:$Force
 }
