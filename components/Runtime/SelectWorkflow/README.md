@@ -84,6 +84,7 @@ JSON parsing is strict. A missing or invalid configuration displays an alert and
 | `Drivers.AutoDetectDrivers` | `true` | Enables manufacturer/model driver-pack detection. |
 | `Drivers.AllowManualSelection` | `true` | Enables the driver dropdown and **Select Folder** button. |
 | `Drivers.AutoOnlineDownloadOnMedia` | `true` | Makes online driver download available in Media mode. |
+| `Drivers.CheckOnlineUpdateOnMedia` | `true` | When a local pack exists, compare Dell/HP/Lenovo online versions and alert if newer. |
 
 ---
 
@@ -137,17 +138,19 @@ Zero-capacity devices and sample/fabricated disks are not shown. If no internal 
 
 ### Drivers and Hardware Injections
 
-Automatic driver detection uses:
+Automatic driver detection uses `catalog.json` (SystemSKU / model) then:
 
 ```text
-Content\Drivers\<Normalized Manufacturer>\<WMI Model>
+Content\Drivers\<Normalized Manufacturer>\<Model>
 ```
 
 Manufacturer values are normalized for Dell, HP, and Lenovo. Driver choice precedence is:
 
 1. Detected local driver pack
-2. Online download in eligible Media deployments
+2. Online download in eligible Media deployments (missing pack → download onto media; existing pack → optional update check/alert for Dell/HP/Lenovo)
 3. Standard Windows in-box drivers
+
+Shared helpers: [`LiteDeploy.OemDriverPackCatalog.ps1`](../../Shared/OemDriverPacks/LiteDeploy.OemDriverPackCatalog.ps1).
 
 The **Select Folder** action opens the companion WPF picker. A custom selection is stored as the actual filesystem path rather than the `Custom:` display label.
 

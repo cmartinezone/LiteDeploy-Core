@@ -81,6 +81,7 @@ LiteDeploy supports three distinct deployment modes:
 | **`Drivers.AutoDetectDrivers`** | `Boolean` | Automatically detect Make/Model via WMI and inject matching driver pack (`true`/`false`). |
 | **`Drivers.AllowManualSelection`** | `Boolean` | Allow operator/technician to manually browse or select driver pack (`true`/`false`). |
 | **`Drivers.AutoOnlineDownloadOnMedia`** | `Boolean` | Automatically fetch missing driver packs from online web repository during USB media boot (`true`/`false`). |
+| **`Drivers.CheckOnlineUpdateOnMedia`** | `Boolean` | When a local model folder already exists on media, compare Dell/HP/Lenovo pack versions online and alert if newer (`true`/`false`). |
 | **`_Comments`** | `String` | Optional comment or documentation string. |
 
 ---

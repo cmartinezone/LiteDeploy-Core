@@ -63,6 +63,48 @@ if (Test-Path -LiteralPath $driverPathPickerScript) {
     . $driverPathPickerScript
 }
 
+# Shared Dell/HP/Lenovo pack catalog helpers (also used by SyncOEMDrivers).
+$oemPackLib = @(
+    (Join-Path $PSScriptRoot "..\..\Shared\OemDriverPacks\LiteDeploy.OemDriverPackCatalog.ps1"),
+    (Join-Path $PSScriptRoot "..\Shared\OemDriverPacks\LiteDeploy.OemDriverPackCatalog.ps1"),
+    (Join-Path $PSScriptRoot "LiteDeploy.OemDriverPackCatalog.ps1")
+) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+if ($oemPackLib) {
+    . $oemPackLib
+}
+
+function Resolve-LiteDeployDeploymentRoot {
+    param(
+        [string]$ConfigPath,
+        $BootObject
+    )
+
+    if ($BootObject -and $BootObject.PSObject.Properties["DeploymentRoot"] -and $BootObject.DeploymentRoot) {
+        return [string]$BootObject.DeploymentRoot
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($ConfigPath) -and (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
+        $configDir = Split-Path -Parent $ConfigPath
+        if ([string]::Equals((Split-Path -Leaf $configDir), "Config", [StringComparison]::OrdinalIgnoreCase)) {
+            return (Split-Path -Parent $configDir)
+        }
+    }
+
+    foreach ($candidate in @(
+            (Join-Path $PSScriptRoot "..\.."),
+            (Join-Path $PSScriptRoot "..\..\.."),
+            $PSScriptRoot
+        )) {
+        $resolved = try { (Resolve-Path -LiteralPath $candidate -ErrorAction Stop).Path } catch { $null }
+        if (-not $resolved) { continue }
+        if (Test-Path -LiteralPath (Join-Path $resolved "Content\Drivers") -PathType Container) {
+            return $resolved
+        }
+    }
+
+    return $PSScriptRoot
+}
+
 # Resolve BootConfig.json in the same order as LiteDeploy.PreCheck.ps1.
 function Find-Configuration {
     $paths = @(
@@ -366,6 +408,10 @@ $($buttonStyles.SecondaryButtonStyleXaml)
 
                     <!-- Auto Online Download Checkbox -->
                     <CheckBox Name="ChkOnlineDrivers" Content="Automatically download driver pack online during USB media imaging" 
+                              FontSize="12.5" Foreground="#374151" FontFamily="Segoe UI" Margin="0,0,0,6"/>
+
+                    <!-- Optional update check when a local pack already exists (Dell/HP/Lenovo compare only) -->
+                    <CheckBox Name="ChkCheckOnlineUpdate" Content="Check for a newer driver pack online when the model folder already exists on media"
                               FontSize="12.5" Foreground="#374151" FontFamily="Segoe UI"/>
                 </StackPanel>
             </Border>
@@ -417,6 +463,7 @@ $rowManualDriverSelection = $window.FindName("RowManualDriverSelection")
 $cmbDriverPackPath        = $window.FindName("CmbDriverPackPath")
 $btnBrowseDriverFolder    = $window.FindName("BtnBrowseDriverFolder")
 $chkOnlineDrivers         = $window.FindName("ChkOnlineDrivers")
+$chkCheckOnlineUpdate     = $window.FindName("ChkCheckOnlineUpdate")
 
 function Clear-InlineValidationError {
     param([System.Windows.Controls.TextBlock]$ErrorTextBlock)
@@ -531,15 +578,17 @@ if ($null -ne $computerSetupConfig) {
 }
 
 # Read Configuration Options from BootConfig -> Drivers
-$autoDetectDrivers    = $true
+$autoDetectDrivers     = $true
 $allowManualSelection  = $true
 $autoOnlineDownload    = $true
+$checkOnlineUpdate     = $true
 
 $driversConfig = Get-LiteDeployProperty $bootConfig "Drivers"
 if ($null -ne $driversConfig) {
     $configuredAutoDetect = Get-LiteDeployProperty $driversConfig "AutoDetectDrivers"
     $configuredManualSelection = Get-LiteDeployProperty $driversConfig "AllowManualSelection"
     $configuredOnlineDownload = Get-LiteDeployProperty $driversConfig "AutoOnlineDownloadOnMedia"
+    $configuredCheckOnlineUpdate = Get-LiteDeployProperty $driversConfig "CheckOnlineUpdateOnMedia"
 
     if ($null -ne $configuredAutoDetect) {
         $autoDetectDrivers = [bool]$configuredAutoDetect
@@ -550,7 +599,13 @@ if ($null -ne $driversConfig) {
     if ($null -ne $configuredOnlineDownload) {
         $autoOnlineDownload = [bool]$configuredOnlineDownload
     }
+    if ($null -ne $configuredCheckOnlineUpdate) {
+        $checkOnlineUpdate = [bool]$configuredCheckOnlineUpdate
+    }
 }
+
+$script:DeploymentRoot = Resolve-LiteDeployDeploymentRoot -ConfigPath $configPath -BootObject $BootObject
+$script:OemPackLibLoaded = [bool](Get-Command Invoke-MediaOemDriverPackAction -ErrorAction SilentlyContinue)
 
 # Apply Computer Identification Card & Field Settings
 if ($promptComputerName -or $promptDescription) {
@@ -616,44 +671,66 @@ if ($null -ne $chkOnlineDrivers) {
     }
 }
 
-# WMI Driver Detection Engine (Content\Drivers\<Manufacturer>\<Model>)
+if ($null -ne $chkCheckOnlineUpdate) {
+    if ($deploymentType -eq "Media" -and $autoOnlineDownload -and $checkOnlineUpdate) {
+        $chkCheckOnlineUpdate.Visibility = [System.Windows.Visibility]::Visible
+        $chkCheckOnlineUpdate.IsChecked = $true
+    } else {
+        $chkCheckOnlineUpdate.Visibility = [System.Windows.Visibility]::Collapsed
+        $chkCheckOnlineUpdate.IsChecked = $false
+    }
+}
+
+# WMI Driver Detection Engine (catalog.json SKU/model, then Content\Drivers\<Manufacturer>\<Model>)
 function Get-SystemDriverDetection {
-    $driversRoot = Join-Path $PSScriptRoot "Content\Drivers"
-    
-    $rawManuf = ""
-    $rawModel = ""
-    try {
-        $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction Stop
-        $rawManuf = $cs.Manufacturer.Trim()
-        $rawModel = $cs.Model.Trim()
-    } catch {
-        try {
-            $wmiCs = Get-WmiObject Win32_ComputerSystem -ErrorAction Stop
-            $rawManuf = $wmiCs.Manufacturer.Trim()
-            $rawModel = $wmiCs.Model.Trim()
-        } catch {
-            $rawManuf = "Dell Inc."
-            $rawModel = "Latitude 7450"
+    $hardware = if (Get-Command Get-SystemHardwareIdentity -ErrorAction SilentlyContinue) {
+        Get-SystemHardwareIdentity
+    } else {
+        [pscustomobject]@{
+            ManufacturerId   = "Unknown"
+            ManufacturerName = "Unknown"
+            ModelName        = "Unknown"
+            SystemSku        = @()
+            CompareSupported = $false
         }
     }
 
-    # Normalize Manufacturer name
-    $manuf = $rawManuf
-    if ($rawManuf -like "*Dell*") { $manuf = "Dell" }
-    elseif ($rawManuf -like "*HP*" -or $rawManuf -like "*Hewlett*") { $manuf = "HP" }
-    elseif ($rawManuf -like "*Lenovo*") { $manuf = "Lenovo" }
+    $local = $null
+    if ($script:DeploymentRoot -and (Get-Command Find-LocalMediaDriverModel -ErrorAction SilentlyContinue)) {
+        $local = Find-LocalMediaDriverModel -DeploymentRoot $script:DeploymentRoot -Hardware $hardware
+    }
 
-    $targetFolder = Join-Path $driversRoot "$manuf\$rawModel"
-    $detected = Test-Path $targetFolder
-
-    $relPath = if ($detected) { "Content\Drivers\$manuf\$rawModel" } else { "Standard OS In-Box Drivers" }
+    if (-not $local) {
+        $driversRoot = Join-Path $script:DeploymentRoot "Content\Drivers"
+        $targetFolder = Join-Path $driversRoot (Join-Path $hardware.ManufacturerName $hardware.ModelName)
+        $detected = Test-Path -LiteralPath $targetFolder
+        return [PSCustomObject]@{
+            Manufacturer     = $hardware.ManufacturerName
+            ManufacturerId   = $hardware.ManufacturerId
+            Model            = $hardware.ModelName
+            SystemSku        = @($hardware.SystemSku)
+            CompareSupported = [bool]$hardware.CompareSupported
+            RelativePath     = if ($detected) { "Content\Drivers\$($hardware.ManufacturerName)\$($hardware.ModelName)" } else { "Standard OS In-Box Drivers" }
+            FullPath         = if ($detected) { $targetFolder } else { $null }
+            IsDetected       = $detected
+            LocalVersion     = ""
+            Hardware         = $hardware
+            Local            = $null
+        }
+    }
 
     return [PSCustomObject]@{
-        Manufacturer = $manuf
-        Model        = $rawModel
-        RelativePath = $relPath
-        FullPath     = if ($detected) { $targetFolder } else { $null }
-        IsDetected   = $detected
+        Manufacturer     = $hardware.ManufacturerName
+        ManufacturerId   = $hardware.ManufacturerId
+        Model            = $local.ModelName
+        SystemSku        = @($hardware.SystemSku)
+        CompareSupported = [bool]$hardware.CompareSupported
+        RelativePath     = $local.Path
+        FullPath         = $local.FullPath
+        IsDetected       = [bool]$local.PathOk
+        LocalVersion     = [string]$local.Version
+        Hardware         = $hardware
+        Local            = $local
     }
 }
 
@@ -666,16 +743,28 @@ if ($autoDetectDrivers) {
     }
 } else {
     $script:DetectionResult = [PSCustomObject]@{
-        Manufacturer = "N/A"
-        Model        = "Auto-Detect Disabled"
-        RelativePath = "Standard OS In-Box Drivers"
-        FullPath     = $null
-        IsDetected   = $false
+        Manufacturer     = "N/A"
+        ManufacturerId   = ""
+        Model            = "Auto-Detect Disabled"
+        SystemSku        = @()
+        CompareSupported = $false
+        RelativePath     = "Standard OS In-Box Drivers"
+        FullPath         = $null
+        IsDetected       = $false
+        LocalVersion     = ""
+        Hardware         = $null
+        Local            = $null
     }
 
     if ($null -ne $txtDetectedHardware) {
         $txtDetectedHardware.Text = "Auto-Detection Disabled by Policy"
     }
+}
+
+# When local pack exists on comparable OEM media, default check-update on if policy allows.
+if ($null -ne $chkCheckOnlineUpdate -and $script:DetectionResult.CompareSupported -eq $false) {
+    $chkCheckOnlineUpdate.IsEnabled = $false
+    $chkCheckOnlineUpdate.Content = "Online pack update check is only available for Dell, HP, and Lenovo"
 }
 
 # Populate Driver Selection ComboBox cleanly
@@ -732,7 +821,7 @@ if ($null -ne $btnBrowseDriverFolder) {
         $initialDriverPath = if ($script:DetectionResult.FullPath) {
             $script:DetectionResult.FullPath
         } else {
-            Join-Path $PSScriptRoot "Content\Drivers"
+            Join-Path $script:DeploymentRoot "Content\Drivers"
         }
 
         $customPath = Show-DriverPathDialog -WindowTitle "Select Driver Folder" -InitialPath $initialDriverPath -Owner $window
@@ -1071,7 +1160,7 @@ if ($null -ne $btnNext) {
             }
         }
 
-        # 4. Save Driver Selection Path
+        # 4. Save Driver Selection Path (+ Media online download / update check)
         $script:AutoDetectDrivers = $autoDetectDrivers
         if ($null -ne $cmbDriverPackPath -and $null -ne $cmbDriverPackPath.SelectedItem) {
             $selectedDriverChoice = $cmbDriverPackPath.SelectedItem.ToString()
@@ -1084,6 +1173,71 @@ if ($null -ne $btnNext) {
             }
         } else {
             $script:SelectedDriverFolderPath = $script:DetectionResult.RelativePath
+        }
+
+        $wantsOnline = $false
+        if ($null -ne $chkOnlineDrivers -and $chkOnlineDrivers.IsChecked) { $wantsOnline = $true }
+        if ($script:SelectedDriverFolderPath -like "*Online Download*") { $wantsOnline = $true }
+        $wantsUpdateCheck = ($null -ne $chkCheckOnlineUpdate -and $chkCheckOnlineUpdate.IsChecked -eq $true)
+
+        if (-not $hasError -and $deploymentType -eq "Media" -and $autoOnlineDownload -and $script:OemPackLibLoaded) {
+            $hardware = if ($script:DetectionResult.Hardware) { $script:DetectionResult.Hardware } else { Get-SystemHardwareIdentity }
+            $localExists = [bool]$script:DetectionResult.IsDetected
+
+            try {
+                if ($wantsOnline -and -not $localExists) {
+                    $downloadResult = Invoke-MediaOemDriverPackAction -DeploymentRoot $script:DeploymentRoot -Hardware $hardware
+                    if ($downloadResult.Action -in @("Downloaded", "Replaced") -and $downloadResult.DriverFolderPath) {
+                        $script:SelectedDriverFolderPath = $downloadResult.DriverFolderPath
+                        $script:DetectionResult.IsDetected = $true
+                        $script:DetectionResult.FullPath = $downloadResult.DriverFolderPath
+                    }
+                    elseif ($downloadResult.Action -in @("PackNotFound", "CompareNotSupported")) {
+                        $confirmFallback = [System.Windows.MessageBox]::Show(
+                            "$($downloadResult.Message)`r`n`r`nContinue with Standard OS In-Box Drivers?",
+                            "Online Driver Pack",
+                            [System.Windows.MessageBoxButton]::YesNo,
+                            [System.Windows.MessageBoxImage]::Warning
+                        )
+                        if ($confirmFallback -ne [System.Windows.MessageBoxResult]::Yes) {
+                            return
+                        }
+                        $script:SelectedDriverFolderPath = "Standard OS In-Box Drivers (Windows Default)"
+                    }
+                }
+                elseif ($localExists -and $wantsUpdateCheck -and $hardware.CompareSupported) {
+                    $checkResult = Invoke-MediaOemDriverPackAction -DeploymentRoot $script:DeploymentRoot -Hardware $hardware -CheckUpdate
+                    if ($checkResult.Action -eq "UpdateAvailable") {
+                        $updateChoice = [System.Windows.MessageBox]::Show(
+                            "$($checkResult.Message)`r`n`r`nDownload and replace the pack on this media?",
+                            "Driver Pack Update Available",
+                            [System.Windows.MessageBoxButton]::YesNo,
+                            [System.Windows.MessageBoxImage]::Information
+                        )
+                        if ($updateChoice -eq [System.Windows.MessageBoxResult]::Yes) {
+                            $replaceResult = Invoke-MediaOemDriverPackAction -DeploymentRoot $script:DeploymentRoot -Hardware $hardware -ForceDownload
+                            if ($replaceResult.DriverFolderPath) {
+                                $script:SelectedDriverFolderPath = $replaceResult.DriverFolderPath
+                            }
+                        }
+                        else {
+                            $script:SelectedDriverFolderPath = $script:DetectionResult.FullPath
+                        }
+                    }
+                    elseif ($checkResult.DriverFolderPath) {
+                        $script:SelectedDriverFolderPath = $checkResult.DriverFolderPath
+                    }
+                }
+                elseif ($localExists -and $script:DetectionResult.FullPath) {
+                    $script:SelectedDriverFolderPath = $script:DetectionResult.FullPath
+                }
+            }
+            catch {
+                Show-DeploymentWarning -Title "Online Driver Pack" -Message (
+                    "Online driver pack action failed:`r`n`r`n$($_.Exception.Message)"
+                )
+                return
+            }
         }
 
         if ($hasError) {
