@@ -84,9 +84,9 @@ param(
 
 ## 📁 4. Configuration Resolution (`BootConfig.json`)
 
-When the engine passes `-BootObject`, Pre-Check uses **`BootObject.Config`** (the runtime config promoted from the mounted share or USB). It does **not** replace that with a boot-WIM or repo-relative file.
+When the engine passes `-BootObject`, Pre-Check uses **`BootObject.Config`** (the runtime config promoted from the mounted share or USB). It does **not** replace that with a boot-WIM or repo-relative file. If `BootObject` is present but `Config` is missing, Pre-Check fails instead of discovering a local file.
 
-Standalone / lab fallback (only if `BootObject.Config` is missing):
+Standalone / lab fallback (only when `-BootObject` is not supplied):
 
 1. `..\..\Manager\Config\BootConfig.json` (LiteDeploy Core component layout)
 2. `Config\BootConfig.json`

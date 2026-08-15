@@ -47,10 +47,10 @@ With `-ModelsCsvPath`, also surfaces `NewInAllowList` (CSV SKU online but not in
 .\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -Update "0C09" -Force
 ```
 
-Resolves pack URL from the OEM catalog when `downloadLink` is missing → downloads via ImportOEMDrivers → replaces `Extracted\` → upserts `catalog.json`.
+Uses catalog `downloadLink` when present; otherwise resolves a URL from the live OEM pack catalog → downloads via ImportOEMDrivers → replaces `Extracted\` → upserts `catalog.json` (including vendor `releaseDate`).
 
-`-Update All` targets FullOS models with `UpdateAvailable` (or missing content with a catalog URL).  
-A non-`All` value matches **model name / modelId first**, then SystemSKU.  
+`-Update All` targets FullOS models with `UpdateAvailable`, plus `MissingContent` / `MissingFromVendor` when a `downloadLink` or vendor URL exists.  
+A non-`All` value matches **exact model name / modelId first**, then substring (warns if multiple), then SystemSKU (Lenovo also matches the 4-character MTM).  
 Optional: `-ManufacturerName Dell` to scope. `-Force` replaces existing `Extracted\` content.
 
 | Status (from check) | Meaning |

@@ -105,7 +105,7 @@ Download the pack (URL from OEM catalog when `downloadLink` is missing), **repla
 .\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -Update "0C09" -Force
 ```
 
-`-Update All` targets FullOS models with `UpdateAvailable`. A non-All value matches model name/id first, then SystemSKU.  
+`-Update All` targets FullOS models with `UpdateAvailable`, plus `MissingContent` / `MissingFromVendor` when a `downloadLink` or vendor URL exists. A non-All value matches exact model name/id first, then substring (warns if multiple), then SystemSKU (Lenovo also matches the 4-character MTM).  
 Optional: `-ManufacturerName Dell` to scope. `-Force` replaces existing `Extracted\` content.
 
 **Update always means:** download pack → replace **`Extracted\`** → upsert **`catalog.json`**.

@@ -157,6 +157,7 @@ function Test-OnlinePackNewer {
     $lv = if ($LocalVersion) { $LocalVersion.Trim() } else { "" }
     $ov = if ($OnlineVersion) { $OnlineVersion.Trim() } else { "" }
     if ($lv -match '^(?i)(unknown|n/?a|none)$') { $lv = "" }
+    if ($ov -match '^(?i)(unknown|n/?a|none)$') { $ov = "" }
     if ([string]::IsNullOrWhiteSpace($ov)) { return $false }
     if ([string]::IsNullOrWhiteSpace($lv)) { return $true }
     if ([string]::Equals($lv, $ov, [StringComparison]::OrdinalIgnoreCase)) { return $false }
@@ -180,7 +181,7 @@ function Test-OnlinePackNewer {
         return $false
     }
 
-    return $true
+    return $false
 }
 
 function Add-PackMapHit {
@@ -381,6 +382,39 @@ function Test-OemOnlineCompareSupported {
     return ($family -in @("Dell", "HP", "Lenovo"))
 }
 
+function Get-SkuLookupKeys {
+    param(
+        [string]$Sku,
+        [string]$VendorFamily = ""
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Sku)) { return @() }
+    $raw = ($Sku.Trim() -replace '\s+', '').ToUpperInvariant()
+    $keys = [System.Collections.Generic.List[string]]::new()
+    $keys.Add($raw)
+    if ($VendorFamily -match '(?i)lenovo' -and $raw.Length -gt 4) {
+        $prefix = $raw.Substring(0, 4)
+        if (-not $keys.Contains($prefix)) { $keys.Add($prefix) }
+    }
+    return @($keys.ToArray())
+}
+
+function Test-SkuKeysOverlap {
+    param(
+        [string[]]$Left,
+        [string[]]$Right
+    )
+
+    $set = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($key in @($Left)) {
+        if ($key) { [void]$set.Add($key) }
+    }
+    foreach ($key in @($Right)) {
+        if ($key -and $set.Contains($key)) { return $true }
+    }
+    return $false
+}
+
 function Resolve-PackFromVendorMap {
     param(
         [object]$LocalModel,
@@ -390,12 +424,13 @@ function Resolve-PackFromVendorMap {
     $family = Resolve-VendorFamily -ManufacturerName $LocalModel.ManufacturerName -ManufacturerId $LocalModel.ManufacturerId
     $best = $null
     foreach ($sku in @($LocalModel.SystemSku)) {
-        $key = ([string]$sku).ToUpperInvariant()
-        if (-not $VendorMap.ContainsKey($key)) { continue }
-        foreach ($hit in $VendorMap[$key]) {
-            if ($hit.Vendor -ne $family -and -not [string]::IsNullOrWhiteSpace($family)) { continue }
-            if ($null -eq $best -or (Test-OnlinePackNewer -LocalVersion $best.Version -LocalReleaseDate $best.ReleaseDate -OnlineVersion $hit.Version -OnlineReleaseDate $hit.ReleaseDate)) {
-                $best = $hit
+        foreach ($key in @(Get-SkuLookupKeys -Sku $sku -VendorFamily $family)) {
+            if (-not $VendorMap.ContainsKey($key)) { continue }
+            foreach ($hit in $VendorMap[$key]) {
+                if ($hit.Vendor -ne $family -and -not [string]::IsNullOrWhiteSpace($family)) { continue }
+                if ($null -eq $best -or (Test-OnlinePackNewer -LocalVersion $best.Version -LocalReleaseDate $best.ReleaseDate -OnlineVersion $hit.Version -OnlineReleaseDate $hit.ReleaseDate)) {
+                    $best = $hit
+                }
             }
         }
     }
@@ -487,7 +522,11 @@ function Find-LocalMediaDriverModel {
     $driversRoot = Join-Path $DeploymentRoot "Content\Drivers"
     $catalogPath = Join-Path $driversRoot "catalog.json"
     $skuSet = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-    foreach ($s in @($Hardware.SystemSku)) { [void]$skuSet.Add($s) }
+    foreach ($s in @($Hardware.SystemSku)) {
+        foreach ($key in @(Get-SkuLookupKeys -Sku $s -VendorFamily $Hardware.ManufacturerName)) {
+            [void]$skuSet.Add($key)
+        }
+    }
 
     $catalogHit = $null
     if (Test-Path -LiteralPath $catalogPath -PathType Leaf) {
@@ -507,7 +546,10 @@ function Find-LocalMediaDriverModel {
                     $modelSkus = @($model.systemSku | ForEach-Object { [string]$_ })
                     $skuMatch = $false
                     foreach ($ms in $modelSkus) {
-                        if ($skuSet.Contains($ms)) { $skuMatch = $true; break }
+                        foreach ($key in @(Get-SkuLookupKeys -Sku $ms -VendorFamily $mfrFamily)) {
+                            if ($skuSet.Contains($key)) { $skuMatch = $true; break }
+                        }
+                        if ($skuMatch) { break }
                     }
                     $nameMatch = [string]::Equals([string]$model.name, [string]$Hardware.ModelName, [StringComparison]::OrdinalIgnoreCase)
                     if (-not $skuMatch -and -not $nameMatch) { continue }
@@ -554,9 +596,6 @@ function Find-LocalMediaDriverModel {
     if (Test-Path -LiteralPath $extractedFolder -PathType Container) {
         $any = Get-ChildItem -LiteralPath $extractedFolder -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
         $pathOk = $null -ne $any
-    }
-    elseif (Test-Path -LiteralPath $folder -PathType Container) {
-        $pathOk = $true
     }
 
     if (-not (Test-Path -LiteralPath $folder -PathType Container)) {
@@ -615,7 +654,8 @@ function Update-MediaDriversCatalogEntry {
         [string]$Version,
         [string]$ReleaseDate,
         [string]$Format,
-        [string]$DownloadLink
+        [string]$DownloadLink,
+        [string[]]$SystemSku = @()
     )
 
     $catalogDir = Split-Path -Parent $CatalogPath
@@ -670,10 +710,29 @@ function Update-MediaDriversCatalogEntry {
         }
     }
 
+    $skuList = [System.Collections.Generic.List[string]]::new()
+    if ($existing -and $existing.PSObject.Properties['systemSku'] -and $existing.systemSku) {
+        foreach ($s in @($existing.systemSku)) {
+            if ($s -and -not $skuList.Contains([string]$s)) { $skuList.Add([string]$s) }
+        }
+    }
+    foreach ($s in @($SystemSku)) {
+        if ($s -and -not $skuList.Contains([string]$s)) { $skuList.Add([string]$s) }
+    }
+    if ($skuList.Count -eq 0 -and $Hardware -and $Hardware.PSObject.Properties['SystemSku']) {
+        $family = Resolve-VendorFamily -ManufacturerName $Hardware.ManufacturerName -ManufacturerId $Hardware.ManufacturerId
+        foreach ($s in @($Hardware.SystemSku)) {
+            foreach ($key in @(Get-SkuLookupKeys -Sku $s -VendorFamily $family)) {
+                if ($key -and -not $skuList.Contains($key)) { $skuList.Add($key) }
+            }
+            if ($family -ne "Lenovo") { break }
+        }
+    }
+
     $entry = [ordered]@{
         modelId      = $ModelId
         name         = $ModelName
-        systemSku    = @($Hardware.SystemSku)
+        systemSku    = @($skuList.ToArray())
         role         = "fullOs"
         version      = $Version
         releaseDate  = $ReleaseDate
@@ -850,6 +909,13 @@ function Invoke-MediaOemDriverPackAction {
     }
 
     $catalogPath = Join-Path $DeploymentRoot "Content\Drivers\catalog.json"
+    $catalogSkus = @()
+    if ($local -and $local.PSObject.Properties['SystemSku'] -and $local.SystemSku) {
+        $catalogSkus = @($local.SystemSku)
+    }
+    elseif ($pack -and $pack.PSObject.Properties['Sku'] -and $pack.Sku) {
+        $catalogSkus = @([string]$pack.Sku)
+    }
     Update-MediaDriversCatalogEntry `
         -CatalogPath $catalogPath `
         -Hardware $Hardware `
@@ -859,7 +925,8 @@ function Invoke-MediaOemDriverPackAction {
         -Version ([string]$pack.Version) `
         -ReleaseDate ([string]$pack.ReleaseDate) `
         -Format $ext `
-        -DownloadLink ([string]$pack.Url)
+        -DownloadLink ([string]$pack.Url) `
+        -SystemSku $catalogSkus
 
     return [pscustomobject]@{
         Action           = $(if ($ForceDownload) { "Replaced" } else { "Downloaded" })

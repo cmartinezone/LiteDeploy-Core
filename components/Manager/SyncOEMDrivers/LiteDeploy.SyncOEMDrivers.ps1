@@ -211,7 +211,7 @@ function Get-CsvAllowList {
         $modelName = $null
         $skuRaw = $null
         foreach ($prop in $row.PSObject.Properties) {
-            if ($prop.Name -match '^(Model|ModelName|Name)$' -and $prop.Value) { $modelName = [string]$prop.Value }
+            if ($prop.Name -match '^(Model|ModelName|Name|FriendlyName)$' -and $prop.Value) { $modelName = [string]$prop.Value }
             if ($prop.Name -match '^(SystemSku|SkuId|SKU|Sku|SystemSKU)$' -and $prop.Value) { $skuRaw = [string]$prop.Value }
         }
         if (-not $modelName -or -not $skuRaw) { continue }
@@ -261,12 +261,13 @@ function New-StatusRows {
         $skuText = ($local.SystemSku -join ";")
         $vendorHits = [System.Collections.Generic.List[object]]::new()
         foreach ($sku in @($local.SystemSku)) {
-            $key = $sku.ToUpperInvariant()
-            [void]$localSkuSet.Add($key)
-            if ($VendorMap.ContainsKey($key)) {
-                foreach ($hit in $VendorMap[$key]) {
-                    if ($hit.Vendor -eq $family -or [string]::IsNullOrWhiteSpace($family)) {
-                        $vendorHits.Add($hit)
+            foreach ($key in @(Get-SkuLookupKeys -Sku $sku -VendorFamily $family)) {
+                [void]$localSkuSet.Add($key)
+                if ($VendorMap.ContainsKey($key)) {
+                    foreach ($hit in $VendorMap[$key]) {
+                        if ($hit.Vendor -eq $family -or [string]::IsNullOrWhiteSpace($family)) {
+                            $vendorHits.Add($hit)
+                        }
                     }
                 }
             }
@@ -353,6 +354,7 @@ function Invoke-ModelPackUpdate {
         [hashtable]$VendorMap = $null,
         [string]$ResolvedDownloadLink = "",
         [string]$ResolvedVersion = "",
+        [string]$ResolvedReleaseDate = "",
         [switch]$UseCurl,
         [switch]$Force
     )
@@ -362,11 +364,13 @@ function Invoke-ModelPackUpdate {
         return [pscustomobject]@{ Model = $LocalModel.ModelName; Updated = $false; Reason = "WinPeModel" }
     }
 
-    $downloadLink = $ResolvedDownloadLink
+    $downloadLink = [string]$LocalModel.DownloadLink
     if ([string]::IsNullOrWhiteSpace($downloadLink)) {
-        $downloadLink = [string]$LocalModel.DownloadLink
+        $downloadLink = $ResolvedDownloadLink
     }
     $onlineVersion = $ResolvedVersion
+    $releaseDate = $ResolvedReleaseDate
+    $pack = $null
     if ([string]::IsNullOrWhiteSpace($downloadLink) -and $null -ne $VendorMap) {
         $pack = Resolve-PackFromVendorMap -LocalModel $LocalModel -VendorMap $VendorMap
         if ($pack -and -not [string]::IsNullOrWhiteSpace($pack.Url)) {
@@ -374,8 +378,14 @@ function Invoke-ModelPackUpdate {
             if ([string]::IsNullOrWhiteSpace($onlineVersion)) {
                 $onlineVersion = [string]$pack.Version
             }
+            if ([string]::IsNullOrWhiteSpace($releaseDate)) {
+                $releaseDate = [string]$pack.ReleaseDate
+            }
             Write-SyncLog "Resolved pack URL from OEM catalog: $downloadLink"
         }
+    }
+    if ([string]::IsNullOrWhiteSpace($releaseDate)) {
+        $releaseDate = [string]$LocalModel.ReleaseDate
     }
 
     if ([string]::IsNullOrWhiteSpace($downloadLink)) {
@@ -423,6 +433,9 @@ function Invoke-ModelPackUpdate {
         Format           = $format
         DownloadLink     = $downloadLink
         FolderName       = $folderName
+    }
+    if (-not [string]::IsNullOrWhiteSpace($releaseDate)) {
+        $argList["ReleaseDate"] = $releaseDate
     }
     if ($UseCurl) { $argList["UseCurl"] = $true }
     if ($Force) { $argList["Force"] = $true }
@@ -556,42 +569,60 @@ function Test-IsFullOsLocalModel {
 $targets = @()
 if ([string]::Equals($updateValue, "All", [StringComparison]::OrdinalIgnoreCase) -or
     [string]::Equals($updateValue, "*", [StringComparison]::OrdinalIgnoreCase)) {
-    Write-SyncLog "Update mode      : All (UpdateAvailable)"
+    Write-SyncLog "Update mode      : All (UpdateAvailable / MissingContent / downloadLink)"
     $targets = foreach ($local in $localModels) {
         if (-not (Test-IsFullOsLocalModel -Local $local)) { continue }
         $key = "{0}|{1}" -f $local.ManufacturerName, $local.ModelId
         $row = $statusByKey[$key]
         if ($null -eq $row) { continue }
-        if ($row.Status -eq "UpdateAvailable" -or (
-                $row.Status -eq "MissingContent" -and -not [string]::IsNullOrWhiteSpace($row.VendorUrl))) {
+        $hasUrl = -not [string]::IsNullOrWhiteSpace($row.VendorUrl) -or -not [string]::IsNullOrWhiteSpace($row.DownloadLink)
+        if ($row.Status -eq "UpdateAvailable" -or
+            ($row.Status -eq "MissingContent" -and $hasUrl) -or
+            ($row.Status -eq "MissingFromVendor" -and -not [string]::IsNullOrWhiteSpace($row.DownloadLink))) {
             $local
         }
     }
     $targets = @($targets)
 }
 else {
-    # Prefer model name / modelId match; fall back to SystemSKU.
-    $modelHits = @($localModels | Where-Object {
+    # Prefer exact model name / modelId; then substring; then SystemSKU (Lenovo 4-char MTM).
+    $exactHits = @($localModels | Where-Object {
             (Test-IsFullOsLocalModel -Local $_) -and (
-                $_.ModelName -like "*$updateValue*" -or $_.ModelId -like "*$updateValue*"
+                [string]::Equals([string]$_.ModelName, $updateValue, [StringComparison]::OrdinalIgnoreCase) -or
+                [string]::Equals([string]$_.ModelId, $updateValue, [StringComparison]::OrdinalIgnoreCase)
             )
         })
-    if ($modelHits.Count -gt 0) {
+    if ($exactHits.Count -gt 0) {
         Write-SyncLog "Update mode      : Model '$updateValue'"
-        $targets = $modelHits
+        $targets = $exactHits
     }
     else {
-        $want = $updateValue.ToUpperInvariant()
-        $skuHits = @($localModels | Where-Object {
+        $modelHits = @($localModels | Where-Object {
                 (Test-IsFullOsLocalModel -Local $_) -and (
-                    @($_.SystemSku | ForEach-Object { $_.ToUpperInvariant() }) -contains $want
+                    $_.ModelName -like "*$updateValue*" -or $_.ModelId -like "*$updateValue*"
                 )
             })
-        if ($skuHits.Count -eq 0) {
-            throw "No FullOS model matched -Update '$updateValue' as model name/id or SystemSKU."
+        if ($modelHits.Count -gt 0) {
+            if ($modelHits.Count -gt 1) {
+                Write-SyncLog "Warning: -Update '$updateValue' matched $($modelHits.Count) models by substring. Prefer the exact name/id or SystemSKU." -ForegroundColor Yellow
+            }
+            Write-SyncLog "Update mode      : Model '$updateValue'"
+            $targets = $modelHits
         }
-        Write-SyncLog "Update mode      : SystemSku '$updateValue'"
-        $targets = $skuHits
+        else {
+            $skuHits = @($localModels | Where-Object {
+                    if (-not (Test-IsFullOsLocalModel -Local $_)) { return $false }
+                    $family = Resolve-VendorFamily -ManufacturerName $_.ManufacturerName -ManufacturerId $_.ManufacturerId
+                    $localKeys = foreach ($sku in @($_.SystemSku)) { Get-SkuLookupKeys -Sku $sku -VendorFamily $family }
+                    $wantKeys = Get-SkuLookupKeys -Sku $updateValue -VendorFamily $family
+                    Test-SkuKeysOverlap -Left @($localKeys) -Right @($wantKeys)
+                })
+            if ($skuHits.Count -eq 0) {
+                throw "No FullOS model matched -Update '$updateValue' as model name/id or SystemSKU."
+            }
+            Write-SyncLog "Update mode      : SystemSku '$updateValue'"
+            $targets = $skuHits
+        }
     }
 }
 
@@ -606,6 +637,7 @@ $results = foreach ($t in $targets) {
     $row = $statusByKey[$key]
     $resolvedUrl = if ($row) { [string]$row.VendorUrl } else { "" }
     $resolvedVer = if ($row) { [string]$row.OnlineVersion } else { "" }
+    $resolvedDate = if ($row) { [string]$row.OnlineDate } else { "" }
     Invoke-ModelPackUpdate `
         -LocalModel $t `
         -DeploymentRoot $DeploymentRoot `
@@ -613,6 +645,7 @@ $results = foreach ($t in $targets) {
         -VendorMap $vendorMap `
         -ResolvedDownloadLink $resolvedUrl `
         -ResolvedVersion $resolvedVer `
+        -ResolvedReleaseDate $resolvedDate `
         -UseCurl:$UseCurl `
         -Force:$Force
 }

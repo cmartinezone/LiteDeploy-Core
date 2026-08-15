@@ -525,28 +525,15 @@ function Invoke-PreCheck {
         $config = Property $BootObject "Config"
         $configPath = Property $BootObject "ConfigPath"
     }
-
-    if (-not $config) {
+    elseif ($BootObject) {
+        Add-Result "Configuration: BootObject.Config is missing (runtime BootConfig was not promoted from the share or USB)." "FAIL"
+        $global:PreCheckPassed = $false
+    }
+    elseif (-not $config) {
         $configPath = Find-Configuration
         if ($configPath) {
             try {
                 $config = Get-Content $configPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-
-                if ($BootObject) {
-                    if ($BootObject.PSObject.Properties['Config']) {
-                        $BootObject.Config = $config
-                    }
-                    else {
-                        $BootObject | Add-Member -NotePropertyName Config -NotePropertyValue $config
-                    }
-
-                    if ($BootObject.PSObject.Properties['ConfigPath']) {
-                        $BootObject.ConfigPath = $configPath
-                    }
-                    else {
-                        $BootObject | Add-Member -NotePropertyName ConfigPath -NotePropertyValue $configPath
-                    }
-                }
             }
             catch { Add-Result "Configuration: Invalid JSON - $($_.Exception.Message)" "FAIL"; $global:PreCheckPassed = $false }
         }

@@ -160,8 +160,10 @@ Implemented on `dev`:
 - Shared OemDriverPacks library (catalog refresh, version compare, Media download)
 - Media: `AutoOnlineDownloadOnMedia` (download missing) + `CheckOnlineUpdateOnMedia` (alert if newer; confirm to replace) — **after** deployment confirmation; this OEM’s catalog only
 - Runtime consumes **promoted** `BootObject.Config` / `DeploymentRoot` from the loaded share or USB, not the boot WIM
-- `downloadLink` in catalog is reference / last-known URL; live OEM catalogs remain source of truth for “what’s online”
-- Import rewrite preserves model `role`; CSV `unknown` version is treated as empty for compare
+- `downloadLink` in catalog is reference / last-known URL; Sync prefers it when present, otherwise resolves the live OEM catalog URL
+- Import rewrite preserves model `role`; FullOS import/sync does not overwrite existing WinPE catalog metadata
+- CSV `unknown` / `n/a` versions (local and online) are treated as empty for compare; incomparable strings are not treated as newer
+- Lenovo lookup uses the 4-character MTM in addition to a full Machine Type stored in `systemSku`
 
 Optional later:
 
