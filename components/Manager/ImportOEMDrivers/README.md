@@ -118,5 +118,5 @@ Default never calls curl. `-UseCurl` fails closed if no curl binary is found.
 - `.exe` packs are stored in the model folder; populate `Extracted\` by passing an extracted folder as `-SourcePath`.
 - `.cab` packs expand under `Content\Temp`, then promote to `Extracted\`.
 - `downloadLink` in `catalog.json` is mainly a reference / last-known URL; Sync can use it if present, otherwise resolves from the live OEM pack catalog.
-- Catalog rewrite **keeps `role`** (`fullOs` / `winpe`).
+- Catalog rewrite **keeps `role`** (`fullOs` / `winpe`). FullOS import/sync does not overwrite an existing WinPE model’s version/date/format unless `-WinPESourcePath` is supplied.
 - Runtime: FullOS `manufacturerId` + `systemSku` → model `path\Extracted` for Setup; WinPE uses the manufacturer **WinPE model** (`modelId: winpe`) → `path\Extracted`.

@@ -100,8 +100,10 @@ function Resolve-LiteDeployDeploymentRoot {
         $candidates.Add((Join-Path $drive $localRoot))
         $candidates.Add($drive)
     }
-    $candidates.Add((Join-Path $PSScriptRoot "..\..\.."))
-    $candidates.Add((Join-Path $PSScriptRoot "..\.."))
+    if (-not $BootObject) {
+        $candidates.Add((Join-Path $PSScriptRoot "..\..\.."))
+        $candidates.Add((Join-Path $PSScriptRoot "..\.."))
+    }
 
     foreach ($candidate in $candidates) {
         if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
@@ -162,6 +164,11 @@ if ($BootObject -and $BootObject.PSObject.Properties['Config'] -and $BootObject.
     if ($BootObject.PSObject.Properties['ConfigPath']) {
         $configPath = [string]$BootObject.ConfigPath
     }
+} elseif ($BootObject) {
+    Show-DeploymentWarning -Title "Missing Deployment Configuration" -Message (
+        "BootObject.Config is missing. The runtime BootConfig was not promoted from the mounted share or USB media."
+    )
+    return $false
 } else {
     $configPath = Find-Configuration
 }
@@ -635,6 +642,11 @@ if ($null -ne $driversConfig) {
 }
 
 $script:DeploymentRoot = Resolve-LiteDeployDeploymentRoot -ConfigPath $configPath -BootObject $BootObject
+if ($BootObject -and [string]::IsNullOrWhiteSpace($script:DeploymentRoot)) {
+    Show-DeploymentWarning -Title "Missing Deployment Root" -Message (
+        "BootObject.DeploymentRoot is empty and no share/USB folder containing Content\ was found. Driver packs cannot be resolved from the loaded environment."
+    )
+}
 $script:OemPackLibLoaded = [bool](Get-Command Invoke-MediaOemDriverPackAction -ErrorAction SilentlyContinue)
 
 # Apply Computer Identification Card & Field Settings
