@@ -46,3 +46,4 @@ LiteDeploy engine and Manager/Runtime work integrates on **`dev`**, not on `main
 - [LITEDEPLOY_DRIVERS_CATALOG.md](LITEDEPLOY_DRIVERS_CATALOG.md) — drivers catalog reference  
 - [LITEDEPLOY_OEM_CATALOG_SYNC.md](LITEDEPLOY_OEM_CATALOG_SYNC.md) — OEM pack sync + Media download  
 - [components/README.md](../../components/README.md) — Manager vs Runtime map  
+- [WINDOWS_TEST_GUIDE.md](../../tests/WinPEEnv/WINDOWS_TEST_GUIDE.md) — run the WinPE layout emulator on Windows  

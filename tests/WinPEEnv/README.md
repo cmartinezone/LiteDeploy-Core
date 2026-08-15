@@ -4,6 +4,8 @@ A **generated** tree that looks like production WinPE + a loaded deployment sour
 
 This is **not** MiniNT. There is no RAM disk `X:` as `SystemDrive`, no USB bus, and no WPF on the Linux Cloud Agent. It is the promote layout + BootConfig split so a Windows workstation can run BootInitializer → engine the same way `startnet.cmd` will.
 
+**Windows operators:** [WINDOWS_TEST_GUIDE.md](WINDOWS_TEST_GUIDE.md) — clone, sync, start, what to click, where logs go, cleanup.
+
 ## Layout
 
 ```text
