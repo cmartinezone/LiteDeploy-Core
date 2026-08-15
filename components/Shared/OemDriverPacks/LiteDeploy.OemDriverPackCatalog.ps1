@@ -72,6 +72,7 @@ function Update-OemVendorIndexes {
     param(
         [string]$OemCatalogsRoot,
         [int]$MaxAgeDays = 7,
+        [string]$VendorFamily = "",
         [switch]$ForceRefresh
     )
 
@@ -94,29 +95,40 @@ function Update-OemVendorIndexes {
         return $xmlPath
     }
 
+    $family = if ($VendorFamily) { $VendorFamily.Trim() } else { "" }
+    $wantDell = [string]::IsNullOrWhiteSpace($family) -or [string]::Equals($family, "Dell", [StringComparison]::OrdinalIgnoreCase)
+    $wantHp = [string]::IsNullOrWhiteSpace($family) -or [string]::Equals($family, "HP", [StringComparison]::OrdinalIgnoreCase)
+    $wantLenovo = [string]::IsNullOrWhiteSpace($family) -or [string]::Equals($family, "Lenovo", [StringComparison]::OrdinalIgnoreCase)
+
     $dellDir = Join-Path $OemCatalogsRoot "Dell"
-    $results["DellIndex"] = Sync-CabCatalog -Dir $dellDir -CabName "CatalogIndexPC.cab" -XmlName "CatalogIndexPC.xml" `
-        -Uri "https://downloads.dell.com/catalog/CatalogIndexPC.cab" -Label "Dell CatalogIndexPC"
-    $results["DellPack"] = Sync-CabCatalog -Dir $dellDir -CabName "DriverPackCatalog.cab" -XmlName "DriverPackCatalog.xml" `
-        -Uri "https://downloads.dell.com/catalog/DriverPackCatalog.cab" -Label "Dell DriverPackCatalog"
+    if ($wantDell) {
+        $results["DellIndex"] = Sync-CabCatalog -Dir $dellDir -CabName "CatalogIndexPC.cab" -XmlName "CatalogIndexPC.xml" `
+            -Uri "https://downloads.dell.com/catalog/CatalogIndexPC.cab" -Label "Dell CatalogIndexPC"
+        $results["DellPack"] = Sync-CabCatalog -Dir $dellDir -CabName "DriverPackCatalog.cab" -XmlName "DriverPackCatalog.xml" `
+            -Uri "https://downloads.dell.com/catalog/DriverPackCatalog.cab" -Label "Dell DriverPackCatalog"
+    }
 
     $hpDir = Join-Path $OemCatalogsRoot "HP"
-    $results["HPIndex"] = Sync-CabCatalog -Dir $hpDir -CabName "platformList.cab" -XmlName "PlatformList.xml" `
-        -Uri "https://hpia.hpcloud.hp.com/ref/platformList.cab" -Label "HP PlatformList"
-    $results["HPPack"] = Sync-CabCatalog -Dir $hpDir -CabName "HPClientDriverPackCatalog.cab" -XmlName "HPClientDriverPackCatalog.xml" `
-        -Uri "https://ftp.hp.com/pub/caps-softpaq/cmit/HPClientDriverPackCatalog.cab" -Label "HP DriverPackCatalog"
+    if ($wantHp) {
+        $results["HPIndex"] = Sync-CabCatalog -Dir $hpDir -CabName "platformList.cab" -XmlName "PlatformList.xml" `
+            -Uri "https://hpia.hpcloud.hp.com/ref/platformList.cab" -Label "HP PlatformList"
+        $results["HPPack"] = Sync-CabCatalog -Dir $hpDir -CabName "HPClientDriverPackCatalog.cab" -XmlName "HPClientDriverPackCatalog.xml" `
+            -Uri "https://ftp.hp.com/pub/caps-softpaq/cmit/HPClientDriverPackCatalog.cab" -Label "HP DriverPackCatalog"
+    }
 
     $lenovoDir = Join-Path $OemCatalogsRoot "Lenovo"
     $lenovoXml = Join-Path $lenovoDir "catalogv2.xml"
-    if ($ForceRefresh -or -not (Test-OemCatalogCacheFresh -Path $lenovoXml -MaxAgeDays $MaxAgeDays)) {
-        if (-not (Test-Path -LiteralPath $lenovoDir)) { $null = New-Item -Path $lenovoDir -ItemType Directory -Force }
-        Save-OemRemoteFile -Uri "https://download.lenovo.com/cdrt/td/catalogv2.xml" -Destination $lenovoXml
-        Write-OemPackLog "Lenovo catalogv2 refreshed: $lenovoXml" -ForegroundColor Green
+    if ($wantLenovo) {
+        if ($ForceRefresh -or -not (Test-OemCatalogCacheFresh -Path $lenovoXml -MaxAgeDays $MaxAgeDays)) {
+            if (-not (Test-Path -LiteralPath $lenovoDir)) { $null = New-Item -Path $lenovoDir -ItemType Directory -Force }
+            Save-OemRemoteFile -Uri "https://download.lenovo.com/cdrt/td/catalogv2.xml" -Destination $lenovoXml
+            Write-OemPackLog "Lenovo catalogv2 refreshed: $lenovoXml" -ForegroundColor Green
+        }
+        else {
+            Write-OemPackLog "Lenovo catalogv2 cache fresh: $lenovoXml"
+        }
+        $results["Lenovo"] = $lenovoXml
     }
-    else {
-        Write-OemPackLog "Lenovo catalogv2 cache fresh: $lenovoXml"
-    }
-    $results["Lenovo"] = $lenovoXml
 
     return $results
 }
@@ -144,6 +156,7 @@ function Test-OnlinePackNewer {
 
     $lv = if ($LocalVersion) { $LocalVersion.Trim() } else { "" }
     $ov = if ($OnlineVersion) { $OnlineVersion.Trim() } else { "" }
+    if ($lv -match '^(?i)(unknown|n/?a|none)$') { $lv = "" }
     if ([string]::IsNullOrWhiteSpace($ov)) { return $false }
     if ([string]::IsNullOrWhiteSpace($lv)) { return $true }
     if ([string]::Equals($lv, $ov, [StringComparison]::OrdinalIgnoreCase)) { return $false }
@@ -740,7 +753,11 @@ function Invoke-MediaOemDriverPackAction {
     }
 
     $oemRoot = Join-Path $DeploymentRoot "Content\Temp\OemCatalogs"
-    $indexPaths = Update-OemVendorIndexes -OemCatalogsRoot $oemRoot -MaxAgeDays $MaxCatalogAgeDays -ForceRefresh:$RefreshCatalog
+    $indexPaths = Update-OemVendorIndexes `
+        -OemCatalogsRoot $oemRoot `
+        -MaxAgeDays $MaxCatalogAgeDays `
+        -VendorFamily $Hardware.ManufacturerName `
+        -ForceRefresh:$RefreshCatalog
     $vendorMap = Get-VendorPackMaps -IndexPaths $indexPaths
 
     $lookupModel = if ($local) {

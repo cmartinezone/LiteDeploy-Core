@@ -212,6 +212,7 @@ function Initialize-DeploymentStateStub {
         autoDetectDrivers     = [bool](Get-EngineProperty $Selection "AutoDetectDrivers")
         requiredCredentialIds = @()
         sourceConfigPath      = [string](Get-EngineProperty $BootObject "ConfigPath")
+        deploymentRoot        = [string](Get-EngineProperty $BootObject "DeploymentRoot")
         deploymentType        = [string](Get-EngineProperty $BootObject "DeploymentType")
         networkPath           = [string](Get-EngineProperty $BootObject "NetworkPath")
         createdAtUtc          = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")

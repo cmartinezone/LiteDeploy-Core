@@ -514,41 +514,42 @@ function Invoke-PreCheck {
     
     Set-PreCheckProgress 5 "Initializing environment and discovering configuration..."
     
-    # PreCheck runs from the connected deployment source. Resolve the full
-    # runtime BootConfig relative to this script first, matching the backup
-    # implementation. BootObject is only the fallback for standalone/testing
-    # layouts where no deployment-source config file is present.
-    $configPath = Find-Configuration
+    # Prefer the BootConfig already promoted from the loaded deployment
+    # environment (share Z: or USB media). Do not replace it with a boot-WIM
+    # or repo-relative copy discovered beside this script.
+    $configPath = $null
     $config = $null; $mode = $null; $share = $DeploymentShare
     $name = "LiteDeploy"; $version = "1.0"; $environment = ""
 
-    if ($configPath) {
-        try {
-            $config = Get-Content $configPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-
-            # Publish the exact configuration consumed by PreCheck back into
-            # the shared in-memory object for SelectWorkflow and later stages.
-            if ($BootObject) {
-                if ($BootObject.PSObject.Properties['Config']) {
-                    $BootObject.Config = $config
-                }
-                else {
-                    $BootObject | Add-Member -NotePropertyName Config -NotePropertyValue $config
-                }
-
-                if ($BootObject.PSObject.Properties['ConfigPath']) {
-                    $BootObject.ConfigPath = $configPath
-                }
-                else {
-                    $BootObject | Add-Member -NotePropertyName ConfigPath -NotePropertyValue $configPath
-                }
-            }
-        }
-        catch { Add-Result "Configuration: Invalid JSON - $($_.Exception.Message)" "FAIL"; $global:PreCheckPassed = $false }
-    }
-    elseif ($BootObject -and (Property $BootObject "Config")) {
+    if ($BootObject -and (Property $BootObject "Config")) {
         $config = Property $BootObject "Config"
         $configPath = Property $BootObject "ConfigPath"
+    }
+
+    if (-not $config) {
+        $configPath = Find-Configuration
+        if ($configPath) {
+            try {
+                $config = Get-Content $configPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+
+                if ($BootObject) {
+                    if ($BootObject.PSObject.Properties['Config']) {
+                        $BootObject.Config = $config
+                    }
+                    else {
+                        $BootObject | Add-Member -NotePropertyName Config -NotePropertyValue $config
+                    }
+
+                    if ($BootObject.PSObject.Properties['ConfigPath']) {
+                        $BootObject.ConfigPath = $configPath
+                    }
+                    else {
+                        $BootObject | Add-Member -NotePropertyName ConfigPath -NotePropertyValue $configPath
+                    }
+                }
+            }
+            catch { Add-Result "Configuration: Invalid JSON - $($_.Exception.Message)" "FAIL"; $global:PreCheckPassed = $false }
+        }
     }
 
     if ($config) {

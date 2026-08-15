@@ -13,7 +13,7 @@ Reusable Dell / HP / Lenovo **driver-pack catalog** helpers shared by Manager an
 
 | Function area | Purpose |
 | --- | --- |
-| `Update-OemVendorIndexes` | Refresh Dell/HP/Lenovo indexes under `Content\Temp\OemCatalogs\` |
+| `Update-OemVendorIndexes` | Refresh Dell/HP/Lenovo indexes under `Content\Temp\OemCatalogs\` (optional `-VendorFamily` to refresh one OEM) |
 | `Get-VendorPackMaps` | Parse pack version / URL / SKU maps |
 | `Test-OnlinePackNewer` | Compare local vs online version/date |
 | `Resolve-PackFromVendorMap` | Best pack URL for a model’s SystemSKU list |

@@ -236,4 +236,6 @@ powershell.exe -STA -ExecutionPolicy Bypass -File "%SystemDrive%\Engine\Scripts\
 ```
 
 Keep `LiteDeploy.SelecWorkflowDriverPicker.ps1` beside the main script in the deployed `Engine\Scripts` directory.  
-Also deploy `LiteDeploy.OemDriverPackCatalog.ps1` (from Shared/OemDriverPacks) where SelectWorkflow can dot-source it for Media online pack support.
+Also deploy `LiteDeploy.OemDriverPackCatalog.ps1` (from Shared/OemDriverPacks) next to those scripts for Media online pack support.
+
+Driver packs and `catalog.json` are read from **`BootObject.DeploymentRoot`** (the loaded share or USB environment), not from the boot WIM. Online download/update runs only after the technician confirms deployment.

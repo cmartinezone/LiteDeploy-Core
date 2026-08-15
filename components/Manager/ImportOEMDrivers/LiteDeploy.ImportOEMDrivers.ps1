@@ -493,10 +493,18 @@ function ConvertTo-OrderedCatalog {
         $models = @()
         foreach ($model in @($mfr.models)) {
             $sku = @($model.systemSku | ForEach-Object { [string]$_ })
+            $role = "fullOs"
+            if ($model.PSObject.Properties['role'] -and $model.role) {
+                $role = [string]$model.role
+            }
+            elseif ([string]::Equals([string]$model.modelId, "winpe", [StringComparison]::OrdinalIgnoreCase)) {
+                $role = "winpe"
+            }
             $modelOrdered = [ordered]@{
                 modelId      = [string]$model.modelId
                 name         = [string]$model.name
                 systemSku    = $sku
+                role         = $role
                 version      = [string]$model.version
                 releaseDate  = [string]$model.releaseDate
                 importedDate = [string]$model.importedDate
