@@ -20,7 +20,7 @@ So: learn *where* catalogs live from FFU; **do not** copy their per-driver downl
 | --- | --- |
 | Pack download (`-DownloadLink`) | Implemented (`ImportOEMDrivers`) |
 | Manual supported-models CSV | Implemented (`-ModelsCsvPath`) |
-| Online vendor **catalog** sync + status/update | `SyncOEMDrivers` — `-CheckStatus` compares/shows versions; `-UpdateAll` / `-Model` / `-SystemSku` download, replace `Extracted\`, update `catalog.json` (pack URL from OEM catalog) |
+| Online vendor **catalog** sync + status/update | `SyncOEMDrivers` — `-CheckStatus` compares/shows; `-Update All` / `-Update "Model"` / `-Update "sku"` download, replace `Extracted\`, update `catalog.json` |
 
 ## Manager CLI: SyncOEMDrivers
 
@@ -68,20 +68,20 @@ Typical columns:
 
 Without `-ModelsCsvPath`, vendor-only “new” rows are **not** dumped (indexes are huge). Pass CSV to surface **new** models/SKUs.
 
-### `-UpdateAll` / `-Model` / `-SystemSku`
+### `-Update All` / `-Update "Model"` / `-Update "sku"`
 
-Download the pack (URL from OEM catalog when `downloadLink` is missing), **replace** `Extracted\`, and **update** `catalog.json` (version + link) via `ImportOEMDrivers`.
+Download the pack (URL from OEM catalog when `downloadLink` is missing), **replace** `Extracted\`, and **update** `catalog.json` via `ImportOEMDrivers`.
 
 ```powershell
-.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -UpdateAll -Force
-.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -Model "Latitude 7450" -Force
-.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -SystemSku "0C09" -Force
+.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -Update All -Force
+.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -Update "Latitude 7450" -Force
+.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -Update "0C09" -Force
 ```
 
-`-UpdateAll` targets FullOS models with `UpdateAvailable` (from the same compare used by `-CheckStatus`).  
-Optional: `-ManufacturerName Dell` to scope. `-Force` replaces existing `Extracted\` content. `-WhatIf` supported.
+`-Update All` targets FullOS models with `UpdateAvailable`. A non-All value matches model name/id first, then SystemSKU.  
+Optional: `-ManufacturerName Dell` to scope. `-Force` replaces existing `Extracted\` content.
 
-**Update always means:** download the **driver pack** (URL from OEM catalog when needed) → replace **`Extracted\`** → upsert **`catalog.json`** via `ImportOEMDrivers`.
+**Update always means:** download pack → replace **`Extracted\`** → upsert **`catalog.json`**.
 
 ### `-RefreshCatalog`
 
@@ -161,7 +161,7 @@ Content\Drivers\
 - **Driver packs into `Extracted\`** — Setup (or DISM) consumes that folder, not a SoftPaq matching repository  
 - **CSV as allow-list** — internal supported models stay authoritative; OEM indexes are discovery  
 - **CheckStatus table** — share vs vendor index in the shell before updating  
-- **Update scoped** — `-UpdateAll`, `-Model`, or `-SystemSku` (always pack → Extracted)  
+- **Update scoped** — `-Update All` / `-Update "Model"` / `-Update "sku"` (always pack → Extracted)  
 - **No Edge/PSREF cookie hacks in v1** — Lenovo uses `catalogv2.xml` first  
 - **Reference only** — learn catalog URLs from FFU; rewrite LiteDeploy-owned PowerShell
 
@@ -169,5 +169,5 @@ Content\Drivers\
 
 1. ~~CLI surface: `-CheckStatus` / `-Update*` / Temp OemCatalogs refresh~~  
 2. ~~Version compare (local `version` vs pack catalog) + outline `OnlineVersion`~~  
-3. ~~`-Update*` auto-resolve pack URL, download, replace, update catalog~~  
+3. ~~`-Update All|"Model"|"sku"` auto-resolve pack URL, download, replace, update catalog~~  
 4. Prefer WinPE-type packs for the WinPE model compare (optional)
