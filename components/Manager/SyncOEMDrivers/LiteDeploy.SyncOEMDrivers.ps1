@@ -789,7 +789,6 @@ function Invoke-ModelPackUpdate {
         Format           = $format
         DownloadLink     = $downloadLink
         FolderName       = $folderName
-        Force            = $true
     }
     if ($UseCurl) { $argList["UseCurl"] = $true }
     if ($Force) { $argList["Force"] = $true }
