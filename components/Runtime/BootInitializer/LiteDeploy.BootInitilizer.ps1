@@ -109,6 +109,33 @@ function Show-LiteDeployGuiError {
     }
 }
 
+function Get-LiteDeployCfgProperty {
+    param(
+        $InputObject,
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+    if ($null -eq $InputObject) { return $null }
+    $property = $InputObject.PSObject.Properties[$Name]
+    if ($property) { return $property.Value }
+    return $null
+}
+
+function Read-LiteDeployConfigFields {
+    param($Config)
+
+    $metadata = Get-LiteDeployCfgProperty -InputObject $Config -Name "Metadata"
+    $deployment = Get-LiteDeployCfgProperty -InputObject $Config -Name "Deployment"
+    return [PSCustomObject]@{
+        AppName        = Get-LiteDeployCfgProperty -InputObject $metadata -Name "Name"
+        Environment    = Get-LiteDeployCfgProperty -InputObject $metadata -Name "Environment"
+        AppVersion     = Get-LiteDeployCfgProperty -InputObject $metadata -Name "Version"
+        DeploymentType = Get-LiteDeployCfgProperty -InputObject $deployment -Name "Type"
+        NetworkPath    = Get-LiteDeployCfgProperty -InputObject $deployment -Name "NetworkPath"
+        LocalRootName  = Get-LiteDeployCfgProperty -InputObject $deployment -Name "LocalRootName"
+    }
+}
+
 function Resolve-LiteDeployEnginePath {
     param([string]$RootPath)
     # Prefer the deployment engine orchestrator. PreCheck is invoked by the engine, not BootInitializer.
@@ -239,13 +266,6 @@ function Resolve-LiteDeployDeploymentRoot {
         }
         if (Test-Path -LiteralPath (Join-Path $resolved "Content") -PathType Container) {
             return $resolved
-        }
-    }
-
-    foreach ($candidate in $candidates) {
-        if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
-        if (Test-Path -LiteralPath $candidate -PathType Container) {
-            try { return (Resolve-Path -LiteralPath $candidate -ErrorAction Stop).Path } catch { return $candidate }
         }
     }
 
@@ -557,33 +577,16 @@ function Get-LiteDeployBootConfig {
 
     # Only enumerate external USB/CD drives if config was NOT found in RAM or explicit path
     if (-not $FoundConfigPath) {
-        try {
-            if (Get-Command Get-Volume -ErrorAction SilentlyContinue) {
-                $sysDrive = $ramDrive.TrimEnd(':')
-                $externalVolumes = Get-Volume -ErrorAction SilentlyContinue | Where-Object {
-                    $vol = $_
-                    if (-not $vol.DriveLetter -or $vol.DriveLetter -eq $sysDrive) { return $false }
-                    $isRemovable = $vol.DriveType -in @('Removable', 'CD-ROM', 'CDROM')
-                    $isUsbBus = $false
-                    if ($vol.PSObject.Properties['DiskNumber'] -and $vol.DiskNumber -ne $null) {
-                        $disk = Get-Disk -Number $vol.DiskNumber -ErrorAction SilentlyContinue
-                        if ($disk -and $disk.PSObject.Properties['BusType'] -and $disk.BusType -in @('USB', '1394', 'SD')) {
-                            $isUsbBus = $true
-                        }
-                    }
-                    return ($isRemovable -or $isUsbBus)
-                }
-                foreach ($vol in $externalVolumes) {
-                    $r = "$($vol.DriveLetter):"
-                    $extCandidate = Resolve-Path -Path "$r\~LiteDeploy\Config\BootConfig.json", "$r\*\Config\BootConfig.json" -ErrorAction SilentlyContinue | Select-Object -First 1
-                    if ($extCandidate -and (Test-Path -LiteralPath $extCandidate.Path -PathType Leaf)) {
-                        $FoundConfigPath = $extCandidate.Path
-                        break
-                    }
-                }
+        foreach ($extRoot in @(Get-LiteDeployExternalMediaRoots -RamDrive $ramDrive)) {
+            $extCandidate = Resolve-Path -Path @(
+                "$extRoot\~LiteDeploy\Config\BootConfig.json",
+                "$extRoot\*\Config\BootConfig.json"
+            ) -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($extCandidate -and (Test-Path -LiteralPath $extCandidate.Path -PathType Leaf)) {
+                $FoundConfigPath = $extCandidate.Path
+                break
             }
         }
-        catch {}
     }
 
     $appName = "LiteDeploy"; $appVersion = "1.0"; $envName = ""; $deploymentType = $null; $networkPath = $null; $localRootName = "~LiteDeploy"; $configFound = $false; $cfg = $null
@@ -591,25 +594,24 @@ function Get-LiteDeployBootConfig {
     if ($FoundConfigPath) {
         Write-LiteDeployLog " [SUCCESS] BootConfig.json discovered at '$($FoundConfigPath)'." -Level "SUCCESS" -ForegroundColor Green
         try {
-            $jsonContent = Get-Content -LiteralPath $FoundConfigPath -Raw -ErrorAction SilentlyContinue
+            $jsonContent = Get-Content -LiteralPath $FoundConfigPath -Raw -ErrorAction Stop
             if ($jsonContent) {
-                $cfg = $jsonContent | ConvertFrom-Json -ErrorAction SilentlyContinue
+                $cfg = $jsonContent | ConvertFrom-Json -ErrorAction Stop
                 if ($cfg) {
                     $configFound = $true
-                    if ($cfg.Metadata) {
-                        if ($cfg.Metadata.Name) { $appName = $cfg.Metadata.Name }
-                        if ($cfg.Metadata.Environment) { $envName = $cfg.Metadata.Environment }
-                        if ($cfg.Metadata.Version) { $appVersion = $cfg.Metadata.Version }
-                    }
-                    if ($cfg.Deployment) {
-                        if ($cfg.Deployment.Type) { $deploymentType = $cfg.Deployment.Type }
-                        if ($cfg.Deployment.NetworkPath) { $networkPath = Format-LiteDeployUncPath -Path $cfg.Deployment.NetworkPath }
-                        if ($cfg.Deployment.LocalRootName) { $localRootName = $cfg.Deployment.LocalRootName }
-                    }
+                    $bootFields = Read-LiteDeployConfigFields -Config $cfg
+                    if ($bootFields.AppName) { $appName = $bootFields.AppName }
+                    if ($bootFields.Environment) { $envName = $bootFields.Environment }
+                    if ($bootFields.AppVersion) { $appVersion = $bootFields.AppVersion }
+                    if ($bootFields.DeploymentType) { $deploymentType = $bootFields.DeploymentType }
+                    if ($bootFields.NetworkPath) { $networkPath = Format-LiteDeployUncPath -Path $bootFields.NetworkPath }
+                    if ($bootFields.LocalRootName) { $localRootName = $bootFields.LocalRootName }
                 }
             }
         }
-        catch {}
+        catch {
+            Write-LiteDeployLog " [WARNING] Failed to parse bootstrap BootConfig.json at '$FoundConfigPath': $($_.Exception.Message)" -Level "WARNING" -ForegroundColor Yellow
+        }
     }
 
     if (-not $configFound) {
@@ -649,15 +651,12 @@ function Get-LiteDeployBootConfig {
             $mountedDrive = $mediaRoot
             $promoted = $true
 
-            if ($cfg.PSObject.Properties['Metadata'] -and $cfg.Metadata) {
-                if ($cfg.Metadata.PSObject.Properties['Name'] -and $cfg.Metadata.Name) { $appName = $cfg.Metadata.Name }
-                if ($cfg.Metadata.PSObject.Properties['Environment'] -and $cfg.Metadata.Environment) { $envName = $cfg.Metadata.Environment }
-                if ($cfg.Metadata.PSObject.Properties['Version'] -and $cfg.Metadata.Version) { $appVersion = $cfg.Metadata.Version }
-            }
-            if ($cfg.PSObject.Properties['Deployment'] -and $cfg.Deployment -and
-                $cfg.Deployment.PSObject.Properties['LocalRootName'] -and $cfg.Deployment.LocalRootName) {
-                $localRootName = $cfg.Deployment.LocalRootName
-            }
+            $mediaFields = Read-LiteDeployConfigFields -Config $cfg
+            if ($mediaFields.AppName) { $appName = $mediaFields.AppName }
+            if ($mediaFields.Environment) { $envName = $mediaFields.Environment }
+            if ($mediaFields.AppVersion) { $appVersion = $mediaFields.AppVersion }
+            if ($mediaFields.LocalRootName) { $localRootName = $mediaFields.LocalRootName }
+            if ($mediaFields.NetworkPath) { $networkPath = Format-LiteDeployUncPath -Path $mediaFields.NetworkPath }
 
             $engineScriptPath = Resolve-LiteDeployEnginePath -RootPath $mediaRoot
             if (-not $engineScriptPath -or -not (Test-Path -LiteralPath $engineScriptPath -PathType Leaf)) {
@@ -847,27 +846,25 @@ function Get-LiteDeployBootConfig {
                     $mountedDrive = if ($mountObj -and $mountObj.PSObject.Properties['DriveLetter']) { $mountObj.DriveLetter } else { "Z:" }
                     $userCred = if ($mountObj -and $mountObj.PSObject.Properties['Credential']) { $mountObj.Credential } else { $null }
                     if ($shareMounted) {
-                        $engineScriptPath = Resolve-LiteDeployEnginePath -RootPath "Z:"
+                        $shareRoot = if ($mountedDrive) { $mountedDrive } else { "Z:" }
+                        $engineScriptPath = Resolve-LiteDeployEnginePath -RootPath $shareRoot
 
                         # The WinPE BootConfig is only a bootstrap contract. Once the
                         # deployment source is mounted, promote its full configuration
                         # into BootObject so every downstream script consumes the same
                         # in-memory object and credential-bearing process.
-                        $runtimeConfig = Get-LiteDeployRuntimeConfig -RootPath "Z:" -LocalRootName $localRootName
+                        $runtimeConfig = Get-LiteDeployRuntimeConfig -RootPath $shareRoot -LocalRootName $localRootName
                         if ($runtimeConfig) {
                             $FoundConfigPath = $runtimeConfig.Path
                             $cfg = $runtimeConfig.Config
                             $configFound = $true
 
-                            if ($cfg.PSObject.Properties['Metadata'] -and $cfg.Metadata) {
-                                if ($cfg.Metadata.PSObject.Properties['Name'] -and $cfg.Metadata.Name) { $appName = $cfg.Metadata.Name }
-                                if ($cfg.Metadata.PSObject.Properties['Environment'] -and $cfg.Metadata.Environment) { $envName = $cfg.Metadata.Environment }
-                                if ($cfg.Metadata.PSObject.Properties['Version'] -and $cfg.Metadata.Version) { $appVersion = $cfg.Metadata.Version }
-                            }
-                            if ($cfg.PSObject.Properties['Deployment'] -and $cfg.Deployment -and
-                                $cfg.Deployment.PSObject.Properties['LocalRootName'] -and $cfg.Deployment.LocalRootName) {
-                                $localRootName = $cfg.Deployment.LocalRootName
-                            }
+                            $runtimeFields = Read-LiteDeployConfigFields -Config $cfg
+                            if ($runtimeFields.AppName) { $appName = $runtimeFields.AppName }
+                            if ($runtimeFields.Environment) { $envName = $runtimeFields.Environment }
+                            if ($runtimeFields.AppVersion) { $appVersion = $runtimeFields.AppVersion }
+                            if ($runtimeFields.LocalRootName) { $localRootName = $runtimeFields.LocalRootName }
+                            if ($runtimeFields.NetworkPath) { $networkPath = Format-LiteDeployUncPath -Path $runtimeFields.NetworkPath }
 
                             Write-LiteDeployLog " [SUCCESS] Runtime configuration promoted from '$($FoundConfigPath)'." -Level "SUCCESS" -ForegroundColor Green
                         }
@@ -962,6 +959,10 @@ if ($MyInvocation.InvocationName -ne '.') {
             }
 
             try {
+                $apartment = [System.Threading.Thread]::CurrentThread.GetApartmentState()
+                if ($apartment -ne [System.Threading.ApartmentState]::STA) {
+                    Write-LiteDeployLog " [WARNING] Host apartment is $apartment. WPF PreCheck/SelectWorkflow require STA (startnet should launch powershell.exe -STA). UiHost will not relaunch when BootObject is bound." -Level "WARNING" -ForegroundColor Yellow
+                }
                 # Deployment engine orchestrates PreCheck → SelectWorkflow → state init (and later Setup).
                 $null = & $enginePath -BootObject $bootObj
             }

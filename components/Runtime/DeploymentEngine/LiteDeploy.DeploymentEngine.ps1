@@ -120,9 +120,15 @@ function Resolve-EngineSiblingScript {
     }
 
     # Mounted share / media root from BootObject.
-    if ($BootObject -and $BootObject.PSObject.Properties['DriveLetter'] -and $BootObject.DriveLetter) {
-        $root = [string]$BootObject.DriveLetter
-        $candidates.Add((Join-Path $root "Engine\Scripts\$FileName"))
+    foreach ($rootProp in @("DeploymentRoot", "DriveLetter", "MediaDriveLetter")) {
+        if ($BootObject -and $BootObject.PSObject.Properties[$rootProp] -and $BootObject.$rootProp) {
+            $root = [string]$BootObject.$rootProp
+            $candidates.Add((Join-Path $root "Engine\Scripts\$FileName"))
+            if ($rootProp -eq "DeploymentRoot") {
+                $candidates.Add((Join-Path $root "components\Runtime\PreCheck\$FileName"))
+                $candidates.Add((Join-Path $root "components\Runtime\SelectWorkflow\$FileName"))
+            }
+        }
     }
 
     foreach ($candidate in $candidates) {

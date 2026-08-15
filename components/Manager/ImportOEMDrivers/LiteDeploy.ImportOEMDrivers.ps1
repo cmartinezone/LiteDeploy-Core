@@ -673,8 +673,25 @@ function Ensure-ManufacturerWinPeModel {
     }
 
     $relativePath = New-RelativeSharePath -Root $DeploymentRoot -FullPath $modelFolder
-    $winPeVersion = if (-not [string]::IsNullOrWhiteSpace($Version)) { $Version } else { "unknown" }
-    $winPeFormat = if ($Format -in @("exe", "cab")) { $Format } else { "cab" }
+    $already = Test-DriversCatalogHasModel -Catalog $Catalog -ManufacturerId $ManufacturerId -ModelId "winpe"
+    $hasWinPeSource = -not [string]::IsNullOrWhiteSpace($WinPESourcePath)
+
+    # FullOS import/sync must not overwrite an existing WinPE catalog row with
+    # the FullOS pack version/date/format. Only first registration or an actual
+    # WinPE source import updates WinPE metadata.
+    if ($already -and -not $hasWinPeSource) {
+        Write-ImportLog "WinPE model already registered; catalog metadata left unchanged." -ForegroundColor DarkYellow
+        return [pscustomobject]@{
+            Catalog         = $Catalog
+            ModelFolder     = $modelFolder
+            ExtractedFolder = $extractedFolder
+            RelativePath    = $relativePath
+        }
+    }
+
+    $winPeVersion = if ($hasWinPeSource -and -not [string]::IsNullOrWhiteSpace($Version)) { $Version } else { "unknown" }
+    $winPeFormat = if ($hasWinPeSource -and $Format -in @("exe", "cab")) { $Format } else { "cab" }
+    $winPeRelease = if ($hasWinPeSource -and -not [string]::IsNullOrWhiteSpace($ReleaseDate)) { $ReleaseDate } else { (Get-Date).ToString("yyyy-MM-dd") }
 
     $modelEntry = [ordered]@{
         modelId      = "winpe"
@@ -682,21 +699,20 @@ function Ensure-ManufacturerWinPeModel {
         systemSku    = @("WINPE")
         role         = "winpe"
         version      = $winPeVersion
-        releaseDate  = $ReleaseDate
+        releaseDate  = $winPeRelease
         importedDate = $ImportedDate
         format       = $winPeFormat
         enabled      = [bool]$Enabled
         path         = $relativePath
     }
 
-    $already = Test-DriversCatalogHasModel -Catalog $Catalog -ManufacturerId $ManufacturerId -ModelId "winpe"
     $catalogOut = Update-DriversCatalogEntry `
         -Catalog $Catalog `
         -ManufacturerId $ManufacturerId `
         -ManufacturerName $ManufacturerName `
         -ManufacturerEnabled $true `
         -ModelEntry $modelEntry `
-        -Force:($Force -or $already)
+        -Force:$hasWinPeSource
 
     Write-ImportLog "WinPE model registered: $ManufacturerName / WinPE [winpe] → $relativePath" -ForegroundColor Green
     return [pscustomobject]@{
