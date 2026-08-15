@@ -13,7 +13,7 @@
 
 The WinPE ISO or `Boot.wim` that launches this script is built with [WinPEBuilder](https://github.com/cmartinezone/WinPEBuilder) for USB/ISO media or WDS/PXE.
 
-It automatically discovers `BootConfig.json` using dynamic RAM drive detection (`$env:SystemDrive`), performs network hardware & IP checks (when `DeploymentType` is `"Network"`), verifies deployment server reachability over SMB Port 445, prompts for user credentials securely via native `Get-Credential`, mounts the remote deployment share to drive **`Z:\`**, discovers `LiteDeploy.HostShell.ps1`, minimizes the console shell, and launches the deployment engine (`LiteDeploy.DeploymentEngine.ps1`) with the in-memory `BootObject`.
+It may discover a **bootstrap** `BootConfig.json` on the boot WIM (`$env:SystemDrive`) for Type / NetworkPath, performs network hardware & IP checks (when `DeploymentType` is `"Network"`), verifies deployment server reachability over SMB Port 445, prompts for user credentials securely via native `Get-Credential`, mounts the remote deployment share to drive **`Z:\`** (or locates USB/ISO for Media), **promotes** the full runtime `BootConfig.json` from that environment into `BootObject` (`Config`, `ConfigPath`, `DeploymentRoot`), discovers `LiteDeploy.HostShell.ps1`, minimizes the console shell, and launches the deployment engine (`LiteDeploy.DeploymentEngine.ps1`) with that in-memory `BootObject`.
 
 ---
 
@@ -193,9 +193,10 @@ $mountRes = Connect-LiteDeployDeploymentShare -NetworkPath "\\Server\DeploymentS
 ```
 
 ### `Get-LiteDeployBootConfig`
-Primary discovery and validation engine function. Returns a `[PSCustomObject]` with strict-mode property protection.
+Primary discovery and validation engine function. Returns a `[PSCustomObject]` with strict-mode property protection. After the source is loaded, `Config` / `ConfigPath` are the **runtime** BootConfig and `DeploymentRoot` is the share or USB folder that contains `Content\`.
 ```powershell
-$bootConfig = Get-LiteDeployBootConfig -ConfigPath "" -MountShare -ShowGuiError
+$bootObj = Get-LiteDeployBootConfig -ConfigPath "" -MountShare -ShowGuiError
+# Config, ConfigPath, DeploymentRoot, DriveLetter, LocalRootName, EngineScriptPath, Credential, …
 ```
 
 ---

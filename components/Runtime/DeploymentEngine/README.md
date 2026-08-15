@@ -20,11 +20,13 @@ BootInitializer
 
 PreCheck and SelectWorkflow **return** to the engine. They do not launch each other.
 
+`BootObject` must already contain the **loaded-environment** `Config`, `ConfigPath`, and `DeploymentRoot` (share `Z:` or USB/ISO). The engine does not re-read the boot-WIM `BootConfig.json`.
+
 ## Parameters
 
 | Parameter | Purpose |
 | --- | --- |
-| `-BootObject` | In-memory boot payload from BootInitializer (includes share `PSCredential`). |
+| `-BootObject` | In-memory boot payload from BootInitializer (`Config` from the loaded environment, `DeploymentRoot`, share `PSCredential`). |
 | `-Resume` | Planned FullOS resume; returns `NotImplemented` on this branch. |
 | `-StatePath` | Planned path for resume state. |
 
@@ -38,6 +40,8 @@ Engine\Scripts\
   LiteDeploy.DeploymentEngine.ps1
   LiteDeploy.PreCheck.ps1
   LiteDeploy.SelectWorkFlow.ps1
+  LiteDeploy.SelecWorkflowDriverPicker.ps1
+  LiteDeploy.OemDriverPackCatalog.ps1   ← required for Media online pack download
   LiteDeploy.Progress.ps1
 ```
 

@@ -60,13 +60,14 @@ The main script dot-sources the picker using `$PSScriptRoot`, so the two active 
 
 ## 3. Configuration resolution
 
-The UI resolves `BootConfig.json` in the same priority order as `LiteDeploy.PreCheck.ps1`:
+When launched by the engine, SelectWorkflow uses the **in-memory `BootObject`** already promoted from the loaded deployment environment (share `Z:` or USB/ISO). It does **not** re-read the boot-WIM `BootConfig.json`.
 
-1. `..\..\Manager\Config\BootConfig.json`
-2. `Config\BootConfig.json`
-3. `BootConfig.json`
+| Source | When |
+| :--- | :--- |
+| `BootObject.Config` / `ConfigPath` / `DeploymentRoot` | Normal WinPE path after BootInitializer |
+| Script-relative fallback | Standalone / lab launch only: `..\..\Manager\Config\BootConfig.json`, `Config\BootConfig.json`, `BootConfig.json` |
 
-All paths are relative to `$PSScriptRoot`; the current PowerShell working directory is not used. The first existing file wins.
+Driver packs are resolved under **`BootObject.DeploymentRoot\Content\Drivers`**, not under `X:\` or `$PSScriptRoot`.
 
 JSON parsing is strict. A missing or invalid configuration displays an alert and terminates the workflow UI rather than continuing with an unknown deployment policy.
 

@@ -65,7 +65,8 @@ Optional: `-ManufacturerName Dell` to scope. `-Force` replaces existing `Extract
 
 ## Vendor pack catalog cache
 
-Under `Content\Temp\OemCatalogs\` (refresh if older than 7 days, or `-RefreshCatalog`):
+Under `Content\Temp\OemCatalogs\` (refresh if older than 7 days, or `-RefreshCatalog`).  
+`-ManufacturerName Dell` (etc.) refreshes **that OEM’s** indexes only.
 
 | OEM | Pack version source | Also cached | Match key |
 | --- | --- | --- | --- |

@@ -25,7 +25,7 @@ Override `Write-OemPackLog` before dot-sourcing to redirect logging (SyncOEMDriv
 
 ## Media behavior (`Invoke-MediaOemDriverPackAction`)
 
-Requires `Deployment.Type = Media` policies in BootConfig (enforced by SelectWorkflow):
+SelectWorkflow runs this **after** the technician confirms deployment. Catalogs refresh for **this manufacturer only** (`-VendorFamily`). Deploy `LiteDeploy.OemDriverPackCatalog.ps1` to `Engine\Scripts`.
 
 - `Drivers.AutoOnlineDownloadOnMedia` — download when pack missing  
 - `Drivers.CheckOnlineUpdateOnMedia` — when folder exists, compare and **alert** (Dell/HP/Lenovo only)

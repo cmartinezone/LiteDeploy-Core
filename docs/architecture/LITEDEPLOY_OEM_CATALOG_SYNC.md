@@ -124,14 +124,18 @@ Forces re-download of vendor catalogs into `Content\Temp\OemCatalogs\` (default:
 
 ## Media runtime (SelectWorkflow)
 
-When `Deployment.Type = Media`:
+When `Deployment.Type = Media`. Packs are written under **`BootObject.DeploymentRoot\Content\Drivers`** (USB/ISO environment), not the boot WIM.
+
+Online download / update-check runs **only after** the technician confirms deployment (Yes on the summary dialog). Canceling that dialog does not change media.
 
 | Policy | Behavior |
 | --- | --- |
 | `Drivers.AutoOnlineDownloadOnMedia` | If the model folder is **missing**, download pack onto local media (same `Content\Drivers` layout) |
-| `Drivers.CheckOnlineUpdateOnMedia` | If the folder **exists**, Dell/HP/Lenovo compare → **alert** if newer; replace only after technician confirms |
+| `Drivers.CheckOnlineUpdateOnMedia` | If the folder **exists**, compare **this OEM only** (Dell/HP/Lenovo) → **alert** if newer; replace only after a second Yes |
 
-Shared implementation: `Invoke-MediaOemDriverPackAction` in OemDriverPacks.
+`LiteDeploy.OemDriverPackCatalog.ps1` must be deployed next to the engine scripts (`Engine\Scripts`). If it is missing, SelectWorkflow warns instead of failing silently.
+
+Shared implementation: `Invoke-MediaOemDriverPackAction` in OemDriverPacks. Media refresh uses `-VendorFamily` so only the current manufacturer catalog is downloaded.
 
 ## How FFU does it (summary)
 
@@ -203,7 +207,9 @@ Content\Drivers\
 - **CSV as allow-list** — internal supported models stay authoritative; OEM indexes are discovery  
 - **CheckStatus table** — share vs vendor index in the shell before updating  
 - **Update scoped** — `-Update All` / `-Update "Model"` / `-Update "sku"` (always pack → Extracted)  
-- **Media: no silent overwrite** — existing model folder is kept unless technician confirms update  
+- **Media: no silent overwrite** — existing model folder is kept unless technician confirms update; download itself waits until after the deployment confirmation  
+- **CSV `unknown` version** — treated as empty for compare (shows as needing a pack)  
+- **Catalog `role`** — preserved on Import rewrite (`fullOs` / `winpe`)  
 - **No Edge/PSREF cookie hacks in v1** — Lenovo uses `catalogv2.xml` first  
 - **Reference only** — learn catalog URLs from FFU; rewrite LiteDeploy-owned PowerShell
 
@@ -213,4 +219,5 @@ Content\Drivers\
 2. ~~Version compare (local `version` vs pack catalog) + outline `OnlineVersion`~~  
 3. ~~`-Update All|"Model"|"sku"` auto-resolve pack URL, download, replace, update catalog~~  
 4. ~~Shared OemDriverPacks lib + Media download / update alert~~  
-5. Prefer WinPE-type packs for the WinPE model compare (optional)  
+5. ~~Loaded-environment BootConfig / DeploymentRoot; download after confirm; scoped OEM refresh~~  
+6. Prefer WinPE-type packs for the WinPE model compare (optional)  

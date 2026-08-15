@@ -88,11 +88,9 @@ Evaluates minimal imaging prerequisites in Windows PE prior to launching task se
 
 ### Configuration Discovery Hierarchy ("The Law")
 
-`LiteDeploy.PreCheck.ps1` targets **`BootConfig.json`** exclusively and follows a strict discovery order:
+`LiteDeploy.BootInitilizer.ps1` may discover a **bootstrap** `BootConfig.json` on the boot WIM (`X:\`) to learn `Deployment.Type` / `NetworkPath`. After the share mounts or USB media is found, it **promotes** the full runtime `BootConfig.json` from that environment into `BootObject`. PreCheck and SelectWorkflow consume **`BootObject.Config`**, not the boot-image copy.
 
-1. **Priority 1 (WinPE RAM `X:\`)** — *Highest Priority ("The Law")*: `X:\~LiteDeploy\Config\BootConfig.json` and `X:\BootConfig.json`. If found on `X:\`, discovery stops immediately!
-2. **Priority 2 (External Media Drives)**: Scans removable USB flash drives, USB SSDs/HDDs, and optical CD-ROM/DVD drives (`DriveType Removable/CD-ROM` + `BusType USB`).
-3. **Priority 3 (Script Root & Working Directory)**: Fallback search in `$PSScriptRoot` and `$PWD`.
+Standalone PreCheck fallback (no `BootObject.Config`): script-relative `Config\BootConfig.json` only.
 
 > **Internal Drive Safeguard**: Internal SATA, NVMe, and RAID target disks are **100% excluded** from discovery to prevent loading stale configuration files from old operating systems.
 

@@ -20,7 +20,7 @@ flowchart TD
     end
 
     subgraph ConfigResolution ["2. BootConfig.json & Policy Resolution"]
-        PaintUI --> FindConfig["Resolve BootConfig.json Location"]
+        PaintUI --> FindConfig["Use BootObject.Config from loaded environment<br/>(standalone: script-relative fallback)"]
         FindConfig --> CheckBypass{"SkipHardwarePreCheck == true?"}
         
         CheckBypass -- "Yes" --> PolicyBypass["Set Banner: PRE-CHECK BYPASSED BY POLICY<br/>Set Status: INFO (Skipped by Policy)<br/>Unlock Continue Button"]
@@ -73,7 +73,7 @@ flowchart TD
 * **BootObject Storage**: Accepts an optional `[psobject]$BootObject` from `LiteDeploy.DeploymentEngine` / BootInitializer and holds it in `$BootObject` and `$global:LiteDeployBootObject`. On Continue, PreCheck returns `{ ContinueRequested, PreCheckPassed, Status }` to the engine; it does not launch SelectWorkflow.
 
 ### 2. Configuration Resolution & Policy Bypass
-* Resolves `BootConfig.json` across strict priority paths.
+* Uses `BootObject.Config` promoted from the loaded share/USB. Standalone only falls back to script-relative `BootConfig.json`.
 * If `Startup.SkipHardwarePreCheck` is set to `true`, hardware checks are bypassed, an `INFO` badge is logged, and the deployment is immediately unlocked.
 
 ### 3. The 9-Point Assessment Pipeline
