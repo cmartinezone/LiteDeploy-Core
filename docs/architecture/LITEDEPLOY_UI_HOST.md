@@ -8,12 +8,13 @@ Shared chrome only — not a merge of PreCheck, SelectWorkflow, and Progress.
 Reduce duplicated WPF bootstrap (themes, buttons, STA/assemblies, backdrop, messages) while keeping three separate entry scripts with different jobs and lifetimes.
 
 ```text
-LiteDeploy.UiHost.ps1          Shared toolkit (dot-sourced)
-    ├── LiteDeploy.BootInitilizer.ps1     Share credential prompt (before Z: is mapped)
+LiteDeploy.UiHost.ps1          Shared toolkit (dot-sourced after Z: is mapped)
     ├── LiteDeploy.PreCheck.ps1           Returns structured PreCheck result
     ├── LiteDeploy.SelectWorkFlow.ps1     Returns structured selection
     └── LiteDeploy.Progress.ps1           Separate read-only process / state reader
 ```
+
+BootInitializer does **not** use UiHost. It runs before the deployment share exists, so logging and the share credential prompt are self-contained in `LiteDeploy.BootInitilizer.ps1` (same reason it does not use LogWriter). After `Z:` is mapped, engine UIs load this toolkit from `Engine\Scripts`.
 
 ## Why not one UI script?
 
@@ -33,7 +34,7 @@ LiteDeploy.UiHost.ps1          Shared toolkit (dot-sourced)
 5. Primary/secondary button Style XAML fragments  
 6. Message box helper (WinForms with WPF fallback)  
 7. Backdrop helper  
-8. Share credential prompt (`Show-LiteDeployCredentialPrompt` → `PSCredential`)  
+8. Optional post-mount credential prompt (`Show-LiteDeployCredentialPrompt` → `PSCredential`). Boot-time share auth uses the copy inside BootInitializer.
 
 ## Not shared
 

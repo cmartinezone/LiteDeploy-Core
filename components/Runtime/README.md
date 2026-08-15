@@ -4,7 +4,7 @@ Device-side components for WinPE and FullOS. Promote approved scripts as sibling
 
 | Folder | Status |
 | --- | --- |
-| [BootInitializer](BootInitializer/) | Exists |
+| [BootInitializer](BootInitializer/) | Exists — local log + credential prompt (share / UiHost not available until after mount) |
 | [DeploymentEngine](DeploymentEngine/) | Scaffold (Phase A) |
 | [PreCheck](PreCheck/) | Exists |
 | [SelectWorkflow](SelectWorkflow/) | Exists — Media online OEM pack download / update alert |

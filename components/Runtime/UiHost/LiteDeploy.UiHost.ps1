@@ -3,7 +3,9 @@
     LiteDeploy shared WPF UI host toolkit.
 
 .DESCRIPTION
-    Dot-source into PreCheck, SelectWorkflow, Progress (and future WPF screens):
+    Dot-source into PreCheck, SelectWorkflow, Progress (and future WPF screens)
+    after the deployment share is mapped. BootInitializer must not load this file
+    — the share (and therefore this toolkit) does not exist until after boot mount.
 
         . (Join-Path $PSScriptRoot "LiteDeploy.UiHost.ps1")
         # or development: ..\UiHost\LiteDeploy.UiHost.ps1
@@ -15,7 +17,8 @@
         Get-LiteDeployUiWindowSize      Adaptive window size for Viewbox hosts
         Get-LiteDeployUiButtonStyleXaml Primary/secondary button Style XAML fragments
         Show-LiteDeployUiMessage        WinForms or WPF message box
-        Show-LiteDeployCredentialPrompt Viewbox-scaled share credential dialog (PSCredential)
+        Show-LiteDeployCredentialPrompt Post-mount share credential dialog (PSCredential).
+                                        BootInitializer has its own copy for pre-mount auth.
         New-LiteDeployUiBackdrop        Full-screen backdrop (WPF or WinForms)
         ConvertTo-LiteDeployUiBrush     Hex → WPF Brush
         ConvertTo-LiteDeployUiWinColor  Hex → System.Drawing.Color
@@ -543,6 +546,8 @@ function Show-LiteDeployCredentialPrompt {
     .SYNOPSIS
         Get-Credential-style prompt that returns PSCredential (SecureString password).
         Viewbox-scaled for WinPE / large screens. Optional show-password toggle.
+        For screens that already have the share (or USB/ISO) available.
+        BootInitializer keeps a self-contained copy for pre-mount share auth.
     #>
     [CmdletBinding()]
     param(

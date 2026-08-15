@@ -152,7 +152,7 @@ State and logs on `C:\~LiteDeploy\` are from the host OS. Delete that folder if 
 | “UiHost … STA … BootObject” throw | Parent was MTA. Always use `Start-WinPETestEnv.ps1`, not a raw `-File` without `-STA` |
 | Configuration path is under `components\` or the repo | You skipped `subst` or used `-SkipSubst`. Re-run without `-SkipSubst` so the path is `Z:\Config\...` |
 | `BootInitializer not found` | Run `.\Sync-WinPETestEnv.ps1` and check `Share\Engine\Scripts` has 10 `.ps1` files |
-| Credential prompt | `Share\Config\BootConfig.json` was changed to `Type: Network`. Default Media does not prompt |
+| Credential prompt | `Share\Config\BootConfig.json` was changed to `Type: Network`. Default Media does not prompt. The dialog is built into BootInitializer (the share / UiHost is not available yet). |
 | OEM download / vendor websites | Default `AutoOnlineDownloadOnMedia` / `CheckOnlineUpdateOnMedia` are `false`. Do not turn them on unless you want live Dell/HP/Lenovo traffic |
 | PreCheck fails TPM / firmware | Normal on a VM or older PC. You can still Continue unless you treat that as a fail for your test |
 | Nothing images the disk | Expected. Phase B (Setup) is not implemented |

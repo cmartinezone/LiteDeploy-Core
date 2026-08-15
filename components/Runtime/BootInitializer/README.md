@@ -13,7 +13,9 @@
 
 The WinPE ISO or `Boot.wim` that launches this script is built with [WinPEBuilder](https://github.com/cmartinezone/WinPEBuilder) for USB/ISO media or WDS/PXE.
 
-It may discover a **bootstrap** `BootConfig.json` on the boot WIM (`$env:SystemDrive`) for Type / NetworkPath, performs network hardware & IP checks (when `DeploymentType` is `"Network"`), verifies deployment server reachability over SMB Port 445, prompts for user credentials securely via native `Get-Credential`, mounts the remote deployment share to drive **`Z:\`** (or locates USB/ISO for Media), **promotes** the full runtime `BootConfig.json` from that environment into `BootObject` (`Config`, `ConfigPath`, `DeploymentRoot`), discovers `LiteDeploy.HostShell.ps1`, minimizes the console shell, and launches the deployment engine (`LiteDeploy.DeploymentEngine.ps1`) with that in-memory `BootObject`.
+It may discover a **bootstrap** `BootConfig.json` on the boot WIM (`$env:SystemDrive`) for Type / NetworkPath, performs network hardware & IP checks (when `DeploymentType` is `"Network"`), verifies deployment server reachability over SMB Port 445, prompts for share credentials with a **local** Viewbox-scaled WPF dialog (native `Get-Credential` fallback), mounts the remote deployment share to drive **`Z:\`** (or locates USB/ISO for Media), **promotes** the full runtime `BootConfig.json` from that environment into `BootObject` (`Config`, `ConfigPath`, `DeploymentRoot`), discovers `LiteDeploy.HostShell.ps1`, minimizes the console shell, and launches the deployment engine (`LiteDeploy.DeploymentEngine.ps1`) with that in-memory `BootObject`.
+
+BootInitializer cannot load [UiHost](../UiHost) or [LogWriter](../LogWriter) from the deployment share: those files are not reachable until after `Z:` is mapped. Logging (`Write-LiteDeployLog`) and the credential dialog (`Show-LiteDeployCredentialPrompt`) are therefore self-contained in this script. After the share is mounted, PreCheck / SelectWorkflow / Progress use UiHost from `Engine\Scripts`.
 
 ---
 
@@ -70,7 +72,7 @@ flowchart TD
     subgraph AuthMount ["4. Pure PowerShell Auth & Drive Mount (Z:)"]
         ConnectShare --> CheckMounted{"Is Z: Already Connected?"}
         CheckMounted -- "Yes" --> MountSuccess["Return Mounted = True & $global:LiteDeployCredential"]
-        CheckMounted -- "No" --> PromptCred["Prompt Credentials (Get-Credential)"]
+        CheckMounted -- "No" --> PromptCred["Prompt Credentials (local Show-LiteDeployCredentialPrompt)"]
         
         PromptCred --> TryMount["New-PSDrive / New-SmbMapping -Name Z (Out-Null Suppressed)"]
         TryMount -- "Success" --> MountSuccess
@@ -128,7 +130,7 @@ When `Deployment.Type` is `"Network"` and `NetworkPath` is configured, the scrip
 ## 5. Pure Native PowerShell Credential & Drive Mapping (`Z:\`)
 
 * **100% Pure PowerShell**: Uses native PowerShell cmdlets (`New-PSDrive` and `New-SmbMapping`) for persistent SMB mapping.
-* **Interactive Retry Loop**: Prompts for credentials via `Show-LiteDeployCredentialPrompt` in [UiHost](../UiHost) (Viewbox-scaled, show-password toggle, returns `PSCredential` / `SecureString`). If UiHost is not beside this script or WPF fails, falls back to native `Get-Credential`. If authentication fails, pops up a Windows Forms **Retry / Cancel** GUI dialog titled *"LiteDeploy - Authentication Failure"*. Clicking **Retry** re-prompts until successful or cancelled.
+* **Interactive Retry Loop**: Prompts for credentials via the **boot-local** `Show-LiteDeployCredentialPrompt` in this script (Viewbox-scaled, show-password toggle, returns `PSCredential` / `SecureString`). Does not load UiHost — the share is not mounted yet. If WPF or STA is unavailable, falls back to native `Get-Credential`. If authentication fails, pops up a Windows Forms **Retry / Cancel** GUI dialog titled *"LiteDeploy - Authentication Failure"*. Clicking **Retry** re-prompts until successful or cancelled.
 * **Graceful Cancellation Guidance**: If the user closes or cancels any prompt, initialization pauses cleanly with clear console instructions:
   `[NOTICE] Deployment initialization paused.`
   `To restart this process, run 'startnet' below.`
@@ -185,8 +187,11 @@ $shareInfo = Test-LiteDeployDeploymentShare -SharePath "\\Server\DeploymentShare
 # Returns [PSCustomObject]@{ Reachable = $bool; Server = "Server" }
 ```
 
+### `Show-LiteDeployCredentialPrompt`
+Boot-local WPF credential dialog (same contract as `Get-Credential`: user name + `SecureString` → `PSCredential`). Lives in this script because UiHost is on the deployment share, which is not available until after mount.
+
 ### `Get-LiteDeployShareCredential`
-Loads sibling `LiteDeploy.UiHost.ps1` when present and shows `Show-LiteDeployCredentialPrompt`. Falls back to `Get-Credential` if UiHost is missing or WPF is not STA.
+Shows the boot-local `Show-LiteDeployCredentialPrompt`. Falls back to `Get-Credential` if WPF is missing or the host is not STA.
 ```powershell
 $cred = Get-LiteDeployShareCredential -NetworkPath "\\Server\DeploymentShare$"
 # Returns PSCredential, or $null / throws if the technician cancels
