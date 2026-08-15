@@ -78,22 +78,10 @@ Download the pack (URL from OEM catalog when `downloadLink` is missing), **repla
 .\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -SystemSku "0C09" -Force
 ```
 
-`-UpdateAll` targets FullOS models with `UpdateAvailable` (from the same compare used by `-CheckStatus`).
+`-UpdateAll` targets FullOS models with `UpdateAvailable` (from the same compare used by `-CheckStatus`).  
+Optional: `-ManufacturerName Dell` to scope. `-Force` replaces existing `Extracted\` content. `-WhatIf` supported.
 
-```powershell
-# Everything with a downloadLink under the share catalog
-.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -UpdateAll
-
-# One model (name or modelId, substring match)
-.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -Model "Latitude 7450"
-
-# One SystemSKU / Machine Type
-.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -SystemSku "0C09"
-```
-
-Optional: `-ManufacturerName Dell` to scope UpdateAll. `-Force` replaces existing Extracted content. `-WhatIf` supported.
-
-**Update always means:** download the **driver pack** → extract into that model’s **`Extracted\`** (via `ImportOEMDrivers`). It does **not** build an FFU-style individual-driver matching repo. `-CheckStatus` uses vendor **pack** catalogs to outline newer versions (`UpdateAvailable`).
+**Update always means:** download the **driver pack** (URL from OEM catalog when needed) → replace **`Extracted\`** → upsert **`catalog.json`** via `ImportOEMDrivers`.
 
 ### `-RefreshCatalog`
 
