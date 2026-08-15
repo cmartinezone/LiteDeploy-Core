@@ -548,12 +548,15 @@ function Show-LiteDeployCredentialPrompt {
         Viewbox-scaled for WinPE / large screens. Optional show-password toggle.
         For screens that already have the share (or USB/ISO) available.
         BootInitializer keeps a self-contained copy for pre-mount share auth.
+        -Theme Light|Dark (default Light). Ready for a later BootConfig Ui.Theme field.
     #>
     [CmdletBinding()]
     param(
         [string]$Message = "Enter credentials to connect the deployment share.",
         [string]$Title = "LiteDeploy - Deployment Share",
-        [string]$UserName = ""
+        [string]$UserName = "",
+        [ValidateSet("Light", "Dark")]
+        [string]$Theme = "Light"
     )
 
     if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Threading.ApartmentState]::STA) {
@@ -583,6 +586,18 @@ function Show-LiteDeployCredentialPrompt {
         $size = [PSCustomObject]@{ Width = [int]($h * 460 / 280); Height = $h }
     }
 
+    $palette = Get-LiteDeployUiThemePalette -Theme $Theme
+    $bgMain = $palette.BgMain
+    $bgInput = if ($palette.IsDark) { $palette.BgHeader } else { "#FFFFFF" }
+    $textPrimary = $palette.TextPrimary
+    $textSecondary = $palette.TextSecondary
+    $textHeader = $palette.TextHeader
+    $textButton = $palette.TextButton
+    $border = $palette.Border
+    $brand = $palette.BrandPrimary
+    $fail = $palette.StatusFail
+    $bgButton = $palette.BgButton
+
     $escapedMessage = [System.Security.SecurityElement]::Escape($Message)
     $escapedTitle = [System.Security.SecurityElement]::Escape($Title)
     $escapedUser = [System.Security.SecurityElement]::Escape($UserName)
@@ -596,7 +611,7 @@ function Show-LiteDeployCredentialPrompt {
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
         WindowStyle="SingleBorderWindow"
-        Background="#F4F6F8"
+        Background="$bgMain"
         Topmost="True"
         ShowInTaskbar="False">
     <Viewbox Stretch="Uniform">
@@ -610,37 +625,44 @@ function Show-LiteDeployCredentialPrompt {
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             <TextBlock Grid.Row="0" Text="Connect to deployment share" FontSize="16" FontWeight="SemiBold"
-                       Foreground="#1B3A4B" FontFamily="Segoe UI" Margin="0,0,0,8"/>
+                       Foreground="$textHeader" FontFamily="Segoe UI" Margin="0,0,0,8"/>
             <TextBlock Grid.Row="1" Name="TxtMessage" Text="$escapedMessage" TextWrapping="Wrap"
-                       FontSize="12" Foreground="#4A5B67" FontFamily="Segoe UI" Margin="0,0,0,14"/>
+                       FontSize="12" Foreground="$textSecondary" FontFamily="Segoe UI" Margin="0,0,0,14"/>
             <StackPanel Grid.Row="2" Margin="0,0,0,10">
-                <TextBlock Text="User name" FontSize="11" Foreground="#4A5B67" Margin="0,0,0,4" FontFamily="Segoe UI"/>
+                <TextBlock Text="User name" FontSize="11" Foreground="$textSecondary" Margin="0,0,0,4" FontFamily="Segoe UI"/>
                 <TextBox Name="TxtUserName" Height="30" FontSize="13" Padding="6,4" FontFamily="Segoe UI"
-                         Text="$escapedUser"/>
+                         Text="$escapedUser" Background="$bgInput" Foreground="$textPrimary"
+                         BorderBrush="$border" CaretBrush="$textPrimary" BorderThickness="1"/>
             </StackPanel>
             <StackPanel Grid.Row="3" Margin="0,0,0,8">
-                <TextBlock Text="Password" FontSize="11" Foreground="#4A5B67" Margin="0,0,0,4" FontFamily="Segoe UI"/>
+                <TextBlock Text="Password" FontSize="11" Foreground="$textSecondary" Margin="0,0,0,4" FontFamily="Segoe UI"/>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <PasswordBox Grid.Column="0" Name="PwdPassword" Height="30" FontSize="13" Padding="6,4"
-                                 FontFamily="Segoe UI"/>
+                                 FontFamily="Segoe UI" Background="$bgInput" Foreground="$textPrimary"
+                                 BorderBrush="$border" CaretBrush="$textPrimary" BorderThickness="1"/>
                     <TextBox Grid.Column="0" Name="TxtPasswordReveal" Height="30" FontSize="13" Padding="6,4"
-                             FontFamily="Segoe UI" Visibility="Collapsed"/>
+                             FontFamily="Segoe UI" Visibility="Collapsed" Background="$bgInput"
+                             Foreground="$textPrimary" BorderBrush="$border"
+                             CaretBrush="$textPrimary" BorderThickness="1"/>
                     <Button Grid.Column="1" Name="BtnReveal" Width="56" Height="30" Margin="8,0,0,0"
                             Content="Show" FontSize="11" FontFamily="Segoe UI"
+                            Background="$bgButton" Foreground="$textButton" BorderBrush="$border"
                             ToolTip="Show or hide password" Cursor="Hand"/>
                 </Grid>
             </StackPanel>
-            <TextBlock Grid.Row="4" Name="TxtError" Foreground="#D13438" FontSize="11" Height="16"
+            <TextBlock Grid.Row="4" Name="TxtError" Foreground="$fail" FontSize="11" Height="16"
                        Visibility="Hidden" FontFamily="Segoe UI"/>
             <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Name="BtnCancel" Content="Cancel" Width="88" Height="30" Margin="0,0,8,0" IsCancel="True"
-                        FontSize="12" FontFamily="Segoe UI"/>
+                        FontSize="12" FontFamily="Segoe UI" Background="$bgButton"
+                        Foreground="$textButton" BorderBrush="$border"/>
                 <Button Name="BtnOk" Content="OK" Width="88" Height="30" IsDefault="True"
-                        FontSize="12" FontWeight="SemiBold" FontFamily="Segoe UI"/>
+                        FontSize="12" FontWeight="SemiBold" FontFamily="Segoe UI"
+                        Background="$brand" Foreground="#FFFFFF" BorderBrush="$brand"/>
             </StackPanel>
         </Grid>
     </Viewbox>

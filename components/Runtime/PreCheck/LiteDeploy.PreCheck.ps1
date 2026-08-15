@@ -51,6 +51,13 @@ elseif (Test-Path Variable:global:LiteDeployBootObject) {
     $BootObject = $global:LiteDeployBootObject
 }
 
+if (-not $PSBoundParameters.ContainsKey("Theme") -and $BootObject -and $BootObject.PSObject.Properties["Theme"]) {
+    $bootTheme = [string]$BootObject.Theme
+    if ($bootTheme -eq "Dark" -or $bootTheme -eq "Light") {
+        $Theme = $bootTheme
+    }
+}
+
 # ------------------------------------------------------------------------------
 # 2. ADAPTIVE WINDOW SIZE & THEME PALETTE (shared UiHost)
 # ------------------------------------------------------------------------------

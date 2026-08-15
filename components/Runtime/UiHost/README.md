@@ -16,7 +16,7 @@ BootInitializer cannot load this file: the share is not mounted yet. Its credent
 | `Get-LiteDeployUiWindowSize` | Adaptive 4:3 window size for Viewbox hosts |
 | `Get-LiteDeployUiButtonStyleXaml` | Primary/secondary button Style fragments |
 | `Show-LiteDeployUiMessage` | WinForms or WPF message box |
-| `Show-LiteDeployCredentialPrompt` | Post-mount Get-Credential-style prompt (Viewbox + show password); returns `PSCredential`. Boot-time share auth uses the BootInitializer copy. |
+| `Show-LiteDeployCredentialPrompt` | Post-mount Get-Credential-style prompt (Viewbox + show password, `-Theme Light|Dark`); returns `PSCredential`. Boot-time share auth uses the BootInitializer copy. |
 | `New-LiteDeployUiBackdrop` / `Close-LiteDeployUiBackdrop` | Full-screen backdrop |
 | `ConvertTo-LiteDeployUiBrush` | Hex → WPF brush |
 | `Find-LiteDeployUiControl` | Named control lookup |

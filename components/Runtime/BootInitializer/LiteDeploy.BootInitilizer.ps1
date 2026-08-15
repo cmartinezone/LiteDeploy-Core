@@ -125,17 +125,65 @@ function ConvertFrom-LiteDeploySecureString {
     }
 }
 
+function Get-LiteDeployBootThemePalette {
+    <#
+    .SYNOPSIS
+        Boot-local Light/Dark hex palette for the pre-mount credential dialog.
+        Matches UiHost colors so a later BootConfig Ui.Theme value looks the same after Z: is mapped.
+    #>
+    [CmdletBinding()]
+    param(
+        [ValidateSet("Light", "Dark")]
+        [string]$Theme = "Light"
+    )
+
+    if ($Theme -eq "Dark") {
+        return @{
+            IsDark         = $true
+            BgMain         = "#121212"
+            BgInput        = "#2A2A2A"
+            TextPrimary    = "#F3F4F6"
+            TextSecondary  = "#9CA3AF"
+            TextHeader     = "#E5E7EB"
+            TextButton     = "#F3F4F6"
+            TextOnBrand    = "#FFFFFF"
+            Border         = "#333333"
+            BrandPrimary   = "#3B82F6"
+            StatusFail     = "#F87171"
+            BgButton       = "#2A2A2A"
+        }
+    }
+
+    return @{
+        IsDark         = $false
+        BgMain         = "#F4F6F8"
+        BgInput        = "#FFFFFF"
+        TextPrimary    = "#1B3A4B"
+        TextSecondary  = "#4A5B67"
+        TextHeader     = "#1B3A4B"
+        TextButton     = "#1F2937"
+        TextOnBrand    = "#FFFFFF"
+        Border         = "#D9E0E7"
+        BrandPrimary   = "#005A9E"
+        StatusFail     = "#D13438"
+        BgButton       = "#FFFFFF"
+    }
+}
+
 function Show-LiteDeployCredentialPrompt {
     <#
     .SYNOPSIS
         Boot-local share credential dialog. Returns PSCredential (SecureString password).
         Self-contained: the deployment share and UiHost are not available until after mount.
+        -Theme Light|Dark (default Light). Later BootConfig Ui.Theme is resolved by the caller.
     #>
     [CmdletBinding()]
     param(
         [string]$Message = "Enter credentials to connect the deployment share.",
         [string]$Title = "LiteDeploy - Deployment Share",
-        [string]$UserName = ""
+        [string]$UserName = "",
+        [ValidateSet("Light", "Dark")]
+        [string]$Theme = "Light"
     )
 
     if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Threading.ApartmentState]::STA) {
@@ -159,6 +207,7 @@ function Show-LiteDeployCredentialPrompt {
     $height = [Math]::Min(480, [Math]::Max(300, [int]($screenHeight * 0.38)))
     $width = [int]($height * 460 / 280)
 
+    $p = Get-LiteDeployBootThemePalette -Theme $Theme
     $escapedMessage = [System.Security.SecurityElement]::Escape($Message)
     $escapedTitle = [System.Security.SecurityElement]::Escape($Title)
     $escapedUser = [System.Security.SecurityElement]::Escape($UserName)
@@ -172,7 +221,7 @@ function Show-LiteDeployCredentialPrompt {
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
         WindowStyle="SingleBorderWindow"
-        Background="#F4F6F8"
+        Background="$($p.BgMain)"
         Topmost="True"
         ShowInTaskbar="False">
     <Viewbox Stretch="Uniform">
@@ -186,37 +235,44 @@ function Show-LiteDeployCredentialPrompt {
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             <TextBlock Grid.Row="0" Text="Connect to deployment share" FontSize="16" FontWeight="SemiBold"
-                       Foreground="#1B3A4B" FontFamily="Segoe UI" Margin="0,0,0,8"/>
+                       Foreground="$($p.TextHeader)" FontFamily="Segoe UI" Margin="0,0,0,8"/>
             <TextBlock Grid.Row="1" Name="TxtMessage" Text="$escapedMessage" TextWrapping="Wrap"
-                       FontSize="12" Foreground="#4A5B67" FontFamily="Segoe UI" Margin="0,0,0,14"/>
+                       FontSize="12" Foreground="$($p.TextSecondary)" FontFamily="Segoe UI" Margin="0,0,0,14"/>
             <StackPanel Grid.Row="2" Margin="0,0,0,10">
-                <TextBlock Text="User name" FontSize="11" Foreground="#4A5B67" Margin="0,0,0,4" FontFamily="Segoe UI"/>
+                <TextBlock Text="User name" FontSize="11" Foreground="$($p.TextSecondary)" Margin="0,0,0,4" FontFamily="Segoe UI"/>
                 <TextBox Name="TxtUserName" Height="30" FontSize="13" Padding="6,4" FontFamily="Segoe UI"
-                         Text="$escapedUser"/>
+                         Text="$escapedUser" Background="$($p.BgInput)" Foreground="$($p.TextPrimary)"
+                         BorderBrush="$($p.Border)" CaretBrush="$($p.TextPrimary)" BorderThickness="1"/>
             </StackPanel>
             <StackPanel Grid.Row="3" Margin="0,0,0,8">
-                <TextBlock Text="Password" FontSize="11" Foreground="#4A5B67" Margin="0,0,0,4" FontFamily="Segoe UI"/>
+                <TextBlock Text="Password" FontSize="11" Foreground="$($p.TextSecondary)" Margin="0,0,0,4" FontFamily="Segoe UI"/>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <PasswordBox Grid.Column="0" Name="PwdPassword" Height="30" FontSize="13" Padding="6,4"
-                                 FontFamily="Segoe UI"/>
+                                 FontFamily="Segoe UI" Background="$($p.BgInput)" Foreground="$($p.TextPrimary)"
+                                 BorderBrush="$($p.Border)" CaretBrush="$($p.TextPrimary)" BorderThickness="1"/>
                     <TextBox Grid.Column="0" Name="TxtPasswordReveal" Height="30" FontSize="13" Padding="6,4"
-                             FontFamily="Segoe UI" Visibility="Collapsed"/>
+                             FontFamily="Segoe UI" Visibility="Collapsed" Background="$($p.BgInput)"
+                             Foreground="$($p.TextPrimary)" BorderBrush="$($p.Border)"
+                             CaretBrush="$($p.TextPrimary)" BorderThickness="1"/>
                     <Button Grid.Column="1" Name="BtnReveal" Width="56" Height="30" Margin="8,0,0,0"
                             Content="Show" FontSize="11" FontFamily="Segoe UI"
+                            Background="$($p.BgButton)" Foreground="$($p.TextButton)" BorderBrush="$($p.Border)"
                             ToolTip="Show or hide password" Cursor="Hand"/>
                 </Grid>
             </StackPanel>
-            <TextBlock Grid.Row="4" Name="TxtError" Foreground="#D13438" FontSize="11" Height="16"
+            <TextBlock Grid.Row="4" Name="TxtError" Foreground="$($p.StatusFail)" FontSize="11" Height="16"
                        Visibility="Hidden" FontFamily="Segoe UI"/>
             <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Name="BtnCancel" Content="Cancel" Width="88" Height="30" Margin="0,0,8,0" IsCancel="True"
-                        FontSize="12" FontFamily="Segoe UI"/>
+                        FontSize="12" FontFamily="Segoe UI" Background="$($p.BgButton)"
+                        Foreground="$($p.TextButton)" BorderBrush="$($p.Border)"/>
                 <Button Name="BtnOk" Content="OK" Width="88" Height="30" IsDefault="True"
-                        FontSize="12" FontWeight="SemiBold" FontFamily="Segoe UI"/>
+                        FontSize="12" FontWeight="SemiBold" FontFamily="Segoe UI"
+                        Background="$($p.BrandPrimary)" Foreground="$($p.TextOnBrand)" BorderBrush="$($p.BrandPrimary)"/>
             </StackPanel>
         </Grid>
     </Viewbox>
@@ -308,12 +364,16 @@ function Show-LiteDeployCredentialPrompt {
 }
 
 function Get-LiteDeployShareCredential {
-    param([string]$NetworkPath)
+    param(
+        [string]$NetworkPath,
+        [ValidateSet("Light", "Dark")]
+        [string]$Theme = "Light"
+    )
 
     $message = "Enter credentials to connect the deployment share.`n$($NetworkPath)"
     $title = "LiteDeploy - Deployment Share"
     try {
-        return Show-LiteDeployCredentialPrompt -Message $message -Title $title
+        return Show-LiteDeployCredentialPrompt -Message $message -Title $title -Theme $Theme
     }
     catch {
         Write-LiteDeployLog " [WARNING] Credential prompt UI failed; using Get-Credential. $($_.Exception.Message)" -Level "WARNING" -ForegroundColor Yellow
@@ -351,6 +411,40 @@ function Get-LiteDeployCfgProperty {
     return $null
 }
 
+function Resolve-LiteDeployUiTheme {
+    <#
+    .SYNOPSIS
+        Reads Light/Dark from BootConfig when present. Default Light.
+        Preferred key is Ui.Theme (reserved for a later BootConfig field).
+        Also accepts Metadata.Theme, Startup.Theme, or a top-level Theme.
+    #>
+    param(
+        $Config,
+        [string]$Fallback = "Light"
+    )
+
+    $ui = Get-LiteDeployCfgProperty -InputObject $Config -Name "Ui"
+    $metadata = Get-LiteDeployCfgProperty -InputObject $Config -Name "Metadata"
+    $startup = Get-LiteDeployCfgProperty -InputObject $Config -Name "Startup"
+    $candidates = @(
+        (Get-LiteDeployCfgProperty -InputObject $ui -Name "Theme"),
+        (Get-LiteDeployCfgProperty -InputObject $metadata -Name "Theme"),
+        (Get-LiteDeployCfgProperty -InputObject $startup -Name "Theme"),
+        (Get-LiteDeployCfgProperty -InputObject $Config -Name "Theme")
+    )
+
+    foreach ($value in $candidates) {
+        if ($null -eq $value) { continue }
+        $normalized = ([string]$value).Trim()
+        if ($normalized -eq "Dark" -or $normalized -eq "Light") {
+            return $normalized
+        }
+    }
+
+    if ($Fallback -eq "Dark") { return "Dark" }
+    return "Light"
+}
+
 function Read-LiteDeployConfigFields {
     param($Config)
 
@@ -363,6 +457,7 @@ function Read-LiteDeployConfigFields {
         DeploymentType = Get-LiteDeployCfgProperty -InputObject $deployment -Name "Type"
         NetworkPath    = Get-LiteDeployCfgProperty -InputObject $deployment -Name "NetworkPath"
         LocalRootName  = Get-LiteDeployCfgProperty -InputObject $deployment -Name "LocalRootName"
+        Theme          = Resolve-LiteDeployUiTheme -Config $Config
     }
 }
 
@@ -676,6 +771,8 @@ function Connect-LiteDeployDeploymentShare {
         [Parameter(Mandatory = $true)]
         [string]$NetworkPath,
         [string]$DriveLetter = "Z:",
+        [ValidateSet("Light", "Dark")]
+        [string]$Theme = "Light",
         [switch]$ShowGuiError
     )
 
@@ -718,7 +815,7 @@ function Connect-LiteDeployDeploymentShare {
 
     while (-not $mounted) {
         try {
-            $userCred = Get-LiteDeployShareCredential -NetworkPath $NetworkPath
+            $userCred = Get-LiteDeployShareCredential -NetworkPath $NetworkPath -Theme $Theme
         }
         catch {
             Write-LiteDeployLog "Deployment share authentication cancelled by user." -Level "WARNING" -ForegroundColor Yellow
@@ -819,7 +916,7 @@ function Get-LiteDeployBootConfig {
         }
     }
 
-    $appName = "LiteDeploy"; $appVersion = "1.0"; $envName = ""; $deploymentType = $null; $networkPath = $null; $localRootName = "~LiteDeploy"; $configFound = $false; $cfg = $null
+    $appName = "LiteDeploy"; $appVersion = "1.0"; $envName = ""; $deploymentType = $null; $networkPath = $null; $localRootName = "~LiteDeploy"; $uiTheme = "Light"; $configFound = $false; $cfg = $null
 
     if ($FoundConfigPath) {
         Write-LiteDeployLog " [SUCCESS] BootConfig.json discovered at '$($FoundConfigPath)'." -Level "SUCCESS" -ForegroundColor Green
@@ -836,6 +933,7 @@ function Get-LiteDeployBootConfig {
                     if ($bootFields.DeploymentType) { $deploymentType = $bootFields.DeploymentType }
                     if ($bootFields.NetworkPath) { $networkPath = Format-LiteDeployUncPath -Path $bootFields.NetworkPath }
                     if ($bootFields.LocalRootName) { $localRootName = $bootFields.LocalRootName }
+                    if ($bootFields.Theme) { $uiTheme = $bootFields.Theme }
                 }
             }
         }
@@ -887,6 +985,7 @@ function Get-LiteDeployBootConfig {
             if ($mediaFields.AppVersion) { $appVersion = $mediaFields.AppVersion }
             if ($mediaFields.LocalRootName) { $localRootName = $mediaFields.LocalRootName }
             if ($mediaFields.NetworkPath) { $networkPath = Format-LiteDeployUncPath -Path $mediaFields.NetworkPath }
+            if ($mediaFields.Theme) { $uiTheme = $mediaFields.Theme }
 
             $engineScriptPath = Resolve-LiteDeployEnginePath -RootPath $mediaRoot
             if (-not $engineScriptPath -or -not (Test-Path -LiteralPath $engineScriptPath -PathType Leaf)) {
@@ -1070,7 +1169,7 @@ function Get-LiteDeployBootConfig {
                 if ($serverReachable -and ($MountShare -or $isWinPE)) {
                     Write-Host ""
                     Write-LiteDeployLog " [CHECK]   Connecting Deployment Share to Z:\..." -Level "INFO" -ForegroundColor Cyan
-                    $mountRes = Connect-LiteDeployDeploymentShare -NetworkPath $networkPath -DriveLetter "Z:" -ShowGuiError:$ShowGuiError
+                    $mountRes = Connect-LiteDeployDeploymentShare -NetworkPath $networkPath -DriveLetter "Z:" -Theme $uiTheme -ShowGuiError:$ShowGuiError
                     $mountObj = if ($mountRes -is [array]) { $mountRes | Where-Object { $_ -is [PSCustomObject] -and $_.PSObject.Properties['Mounted'] } | Select-Object -Last 1 } else { $mountRes }
                     $shareMounted = [bool]($mountObj -and $mountObj.PSObject.Properties['Mounted'] -and $mountObj.Mounted)
                     $mountedDrive = if ($mountObj -and $mountObj.PSObject.Properties['DriveLetter']) { $mountObj.DriveLetter } else { "Z:" }
@@ -1095,6 +1194,7 @@ function Get-LiteDeployBootConfig {
                             if ($runtimeFields.AppVersion) { $appVersion = $runtimeFields.AppVersion }
                             if ($runtimeFields.LocalRootName) { $localRootName = $runtimeFields.LocalRootName }
                             if ($runtimeFields.NetworkPath) { $networkPath = Format-LiteDeployUncPath -Path $runtimeFields.NetworkPath }
+                            if ($runtimeFields.Theme) { $uiTheme = $runtimeFields.Theme }
 
                             Write-LiteDeployLog " [SUCCESS] Runtime configuration promoted from '$($FoundConfigPath)'." -Level "SUCCESS" -ForegroundColor Green
                         }
@@ -1113,6 +1213,7 @@ function Get-LiteDeployBootConfig {
         -LocalRootName $localRootName
     if ($deploymentRoot) {
         Write-LiteDeployLog " [INFO]    DeploymentRoot   : $deploymentRoot" -Level "INFO" -ForegroundColor DarkCyan
+        Write-LiteDeployLog " [INFO]    UI Theme         : $uiTheme" -Level "INFO" -ForegroundColor DarkCyan
         if (-not $engineScriptPath -or -not (Test-Path -LiteralPath $engineScriptPath -PathType Leaf)) {
             $engineScriptPath = Resolve-LiteDeployEnginePath -RootPath $deploymentRoot
         }
@@ -1143,6 +1244,7 @@ function Get-LiteDeployBootConfig {
         AppVersion          = $appVersion
         Environment         = $envName
         NetworkPath         = $networkPath
+        Theme               = $uiTheme
     }
 }
 

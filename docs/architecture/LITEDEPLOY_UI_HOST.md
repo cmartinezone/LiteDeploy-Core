@@ -34,7 +34,7 @@ BootInitializer does **not** use UiHost. It runs before the deployment share exi
 5. Primary/secondary button Style XAML fragments  
 6. Message box helper (WinForms with WPF fallback)  
 7. Backdrop helper  
-8. Optional post-mount credential prompt (`Show-LiteDeployCredentialPrompt` → `PSCredential`). Boot-time share auth uses the copy inside BootInitializer.
+8. Optional post-mount credential prompt (`Show-LiteDeployCredentialPrompt -Theme Light|Dark` → `PSCredential`). Boot-time share auth uses the copy inside BootInitializer. Both honor `Ui.Theme` from BootConfig when that field is present (default Light).
 
 ## Not shared
 

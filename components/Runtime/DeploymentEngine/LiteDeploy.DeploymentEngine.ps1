@@ -152,6 +152,32 @@ function Get-EngineProperty {
     return $null
 }
 
+function Resolve-EngineUiTheme {
+    param($BootObject)
+
+    $theme = Get-EngineProperty -InputObject $BootObject -Name "Theme"
+    if ($theme -eq "Dark" -or $theme -eq "Light") {
+        return [string]$theme
+    }
+
+    $config = Get-EngineProperty -InputObject $BootObject -Name "Config"
+    if ($null -ne $config) {
+        foreach ($sectionName in @("Ui", "Metadata", "Startup")) {
+            $section = Get-EngineProperty -InputObject $config -Name $sectionName
+            $sectionTheme = Get-EngineProperty -InputObject $section -Name "Theme"
+            if ($sectionTheme -eq "Dark" -or $sectionTheme -eq "Light") {
+                return [string]$sectionTheme
+            }
+        }
+        $topTheme = Get-EngineProperty -InputObject $config -Name "Theme"
+        if ($topTheme -eq "Dark" -or $topTheme -eq "Light") {
+            return [string]$topTheme
+        }
+    }
+
+    return "Light"
+}
+
 function Test-PreCheckContinue {
     param([psobject]$Result)
 
@@ -300,8 +326,9 @@ if (-not $selectWorkflowPath) {
     throw "LiteDeploy.SelectWorkFlow.ps1 was not found beside the engine or under components/Runtime/SelectWorkflow."
 }
 
-Write-EngineLog "Invoking PreCheck: $preCheckPath" -Level "INFO"
-$preCheckResult = & $preCheckPath -BootObject $BootObject
+$uiTheme = Resolve-EngineUiTheme -BootObject $BootObject
+Write-EngineLog "Invoking PreCheck: $preCheckPath (Theme=$uiTheme)" -Level "INFO"
+$preCheckResult = & $preCheckPath -BootObject $BootObject -Theme $uiTheme
 
 if (-not (Test-PreCheckContinue -Result $preCheckResult)) {
     $status = Get-EngineProperty $preCheckResult "Status"
@@ -317,8 +344,8 @@ if (-not (Test-PreCheckContinue -Result $preCheckResult)) {
     }
 }
 
-Write-EngineLog "PreCheck Continue accepted. Invoking SelectWorkflow: $selectWorkflowPath" -Level "INFO" -ForegroundColor Green
-$selection = & $selectWorkflowPath -BootObject $BootObject
+Write-EngineLog "PreCheck Continue accepted. Invoking SelectWorkflow: $selectWorkflowPath (Theme=$uiTheme)" -Level "INFO" -ForegroundColor Green
+$selection = & $selectWorkflowPath -BootObject $BootObject -Theme $uiTheme
 
 if (-not (Test-WorkflowSelectionConfirmed -Result $selection)) {
     Write-EngineLog "Workflow selection cancelled. Stopping without disk changes." -Level "WARNING" -ForegroundColor Yellow

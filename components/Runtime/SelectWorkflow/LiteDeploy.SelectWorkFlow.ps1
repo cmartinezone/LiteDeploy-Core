@@ -25,15 +25,23 @@ $uiInit = Initialize-LiteDeployUiHost `
 if ($uiInit.Relaunched) { return }
 
 $script:WindowsFormsAlertsAvailable = [bool]$uiInit.WindowsForms
-$palette = Get-LiteDeployUiThemePalette -Theme $Theme
-$buttonStyles = Get-LiteDeployUiButtonStyleXaml -Palette $palette -Density Default
-$windowSize = Get-LiteDeployUiWindowSize -HeightFraction 0.85 -MinHeight 600 -MaxHeight 900 -AspectWidth 1024 -AspectHeight 820
 
 if ($BootObject) {
     $global:LiteDeployBootObject = $BootObject
 } elseif (Test-Path Variable:global:LiteDeployBootObject) {
     $BootObject = $global:LiteDeployBootObject
 }
+
+if (-not $PSBoundParameters.ContainsKey("Theme") -and $BootObject -and $BootObject.PSObject.Properties["Theme"]) {
+    $bootTheme = [string]$BootObject.Theme
+    if ($bootTheme -eq "Dark" -or $bootTheme -eq "Light") {
+        $Theme = $bootTheme
+    }
+}
+
+$palette = Get-LiteDeployUiThemePalette -Theme $Theme
+$buttonStyles = Get-LiteDeployUiButtonStyleXaml -Palette $palette -Density Default
+$windowSize = Get-LiteDeployUiWindowSize -HeightFraction 0.85 -MinHeight 600 -MaxHeight 900 -AspectWidth 1024 -AspectHeight 820
 
 function Get-LiteDeployProperty {
     param(

@@ -188,10 +188,13 @@ $shareInfo = Test-LiteDeployDeploymentShare -SharePath "\\Server\DeploymentShare
 ```
 
 ### `Show-LiteDeployCredentialPrompt`
-Boot-local WPF credential dialog (same contract as `Get-Credential`: user name + `SecureString` → `PSCredential`). Lives in this script because UiHost is on the deployment share, which is not available until after mount.
+Boot-local WPF credential dialog (same contract as `Get-Credential`: user name + `SecureString` → `PSCredential`). Lives in this script because UiHost is on the deployment share, which is not available until after mount. Accepts `-Theme Light|Dark` (default Light). Colors match the UiHost palette.
+
+### `Resolve-LiteDeployUiTheme`
+Reads `Light` / `Dark` from BootConfig when present. Preferred key is `Ui.Theme` (reserved for a later BootConfig field). Also accepts `Metadata.Theme`, `Startup.Theme`, or a top-level `Theme`. Invalid or missing values default to `Light`. Bootstrap BootConfig can set this for the pre-mount credential prompt; the loaded-environment BootConfig can override it for PreCheck / SelectWorkflow after promote.
 
 ### `Get-LiteDeployShareCredential`
-Shows the boot-local `Show-LiteDeployCredentialPrompt`. Falls back to `Get-Credential` if WPF is missing or the host is not STA.
+Shows the boot-local `Show-LiteDeployCredentialPrompt` using the resolved theme. Falls back to `Get-Credential` if WPF is missing or the host is not STA.
 ```powershell
 $cred = Get-LiteDeployShareCredential -NetworkPath "\\Server\DeploymentShare$"
 # Returns PSCredential, or $null / throws if the technician cancels
@@ -208,7 +211,7 @@ $mountRes = Connect-LiteDeployDeploymentShare -NetworkPath "\\Server\DeploymentS
 Primary discovery and validation engine function. Returns a `[PSCustomObject]` with strict-mode property protection. After the source is loaded, `Config` / `ConfigPath` are the **runtime** BootConfig and `DeploymentRoot` is the share or USB folder that contains `Content\`.
 ```powershell
 $bootObj = Get-LiteDeployBootConfig -ConfigPath "" -MountShare -ShowGuiError
-# Config, ConfigPath, DeploymentRoot, DriveLetter, LocalRootName, EngineScriptPath, Credential, …
+# Config, ConfigPath, DeploymentRoot, DriveLetter, LocalRootName, EngineScriptPath, Credential, Theme, …
 ```
 
 ---
