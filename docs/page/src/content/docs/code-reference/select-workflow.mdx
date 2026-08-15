@@ -1,0 +1,45 @@
+---
+title: SelectWorkflow
+description: Computer identity, workflow, disk, and driver selection UI.
+---
+
+**Scripts:**
+
+- `LiteDeploy.SelectWorkFlow.ps1` — main UI
+- `LiteDeploy.SelecWorkflowDriverPicker.ps1` — folder picker (must stay a sibling)
+
+SelectWorkflow collects four things, then returns a structured selection to the engine. It does not start Setup.
+
+```text
+STA + UiHost
+    → Parse promoted BootConfig
+    → Apply ComputerSetup / Drivers policy
+    → Detect hardware, packs, disks
+    → Technician selections
+    → Confirm → return to engine
+```
+
+## What it collects
+
+1. Computer identity (name, optional description)
+2. Workflow (Standard / Intune tags today; catalog-driven later)
+3. Target physical disk
+4. Driver source (auto-detect, manual folder, Media online pack download / update alert)
+
+## Policy from BootConfig
+
+| Property | Effect |
+| --- | --- |
+| `ComputerSetup.DriveSelection` | Show disk picker (`true`) or take the first disk (`false`) |
+| `ComputerSetup.ImageEngine` | Recorded as `Setup.exe` or `Dism.exe` for Phase B |
+| `Drivers.AutoOnlineDownloadOnMedia` | After confirm, download a matching OEM pack on Media |
+| `Drivers.CheckOnlineUpdateOnMedia` | Alert if a newer pack exists |
+
+## Theme
+
+`-Theme Light|Dark`, or `BootObject.Theme` when the parameter is omitted.
+
+## Related
+
+- [Deployment Engine](/code-reference/deployment-engine/)
+- [Manager overview](/manager/overview/) — OEM packs

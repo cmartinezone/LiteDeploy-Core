@@ -70,6 +70,7 @@ LiteDeploy Core/
   DeploymentShare/            Initial deployment-share folder layout
   tests/WinPEEnv/             Generated WinPE + share layout (sync after component changes)
   docs/architecture/          Product design, diagrams, and status
+  docs/page/                  Starlight documentation site
   experiments/                Historical and scratch scripts; not shippable
 ```
 
@@ -86,6 +87,10 @@ These stay in their own GitHub repos. LiteDeploy Core consumes them; it does not
 | [WinPECT](https://github.com/cmartinezone/WinPECT) | Hardware-bound credential transfer from WinPE to FullOS. |
 
 ## Architecture
+
+Curated site (Astro + Starlight): [`docs/page`](docs/page) — run `npm install` and `npm run dev` from that folder.
+
+Long-form design notes:
 
 - [Deployment plan](docs/architecture/LITEDEPLOY_DEPLOYMENT_PLAN.md)
 - [Workflow schema](docs/architecture/LITEDEPLOY_WORKFLOW_SCHEMA.md)

@@ -1,0 +1,66 @@
+---
+title: BootConfig
+description: Bootstrap vs loaded-environment BootConfig.json, and the reserved Ui.Theme field.
+---
+
+`BootConfig.json` is the policy file. There are two copies with different jobs.
+
+## Bootstrap (boot WIM)
+
+On the WIM: Type and NetworkPath (or LocalRootName). Optional `Ui.Theme` for the pre-mount credential prompt.
+
+```json
+{
+  "$schemaVersion": "1.0",
+  "Deployment": {
+    "Type": "Network",
+    "NetworkPath": "\\\\Server\\DeploymentShare$"
+  },
+  "Ui": {
+    "Theme": "Light"
+  }
+}
+```
+
+## Loaded environment (share or USB)
+
+Full policy after mount or media discovery: Metadata, Deployment, Startup, ComputerSetup, Drivers.
+
+```json
+{
+  "Metadata": { "Name": "LiteDeploy", "Environment": "Production", "Version": "1.0" },
+  "Deployment": {
+    "Type": "Network",
+    "NetworkPath": "\\\\Server\\DeploymentShare$",
+    "LocalRootName": "~LiteDeploy"
+  },
+  "Startup": {
+    "SkipHardwarePreCheck": false,
+    "SkipHardwareRequirments": false
+  },
+  "ComputerSetup": {
+    "PromptForComputerName": true,
+    "DriveSelection": true,
+    "ImageEngine": "Setup.exe"
+  },
+  "Drivers": {
+    "AutoDetectDrivers": true,
+    "AllowManualSelection": true,
+    "AutoOnlineDownloadOnMedia": true,
+    "CheckOnlineUpdateOnMedia": true
+  },
+  "Ui": { "Theme": "Light" }
+}
+```
+
+`Ui.Theme` is optional. Allowed values: `Light`, `Dark`. Default Light.
+
+Template: `components/Manager/Config/LiteDeploy.Template.BootConfig.json`.
+
+## What must not go in BootConfig
+
+- Passwords, `PSCredential`, or SecureString
+- Serial / SKU written back from the device
+- Runtime hardware inventory (that belongs in state JSON)
+
+See [Deployment modes](/guides/deployment-modes/) and [BootInitializer](/code-reference/bootinitializer/).

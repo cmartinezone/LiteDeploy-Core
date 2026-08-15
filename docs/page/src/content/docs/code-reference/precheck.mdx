@@ -1,0 +1,42 @@
+---
+title: PreCheck
+description: Nine-point WinPE readiness UI. Returns a structured result to the engine.
+---
+
+**Script:** `components/Runtime/PreCheck/LiteDeploy.PreCheck.ps1`
+
+PreCheck validates device readiness before imaging. It is native PowerShell + WPF with software rendering for WinPE. The engine calls it with `-BootObject` and `-Theme`. It returns a structured result (`ContinueRequested`, `PreCheckPassed`). It does not start SelectWorkflow.
+
+## Lifecycle
+
+```text
+STA + UiHost + software render
+    → Viewbox scale + Light/Dark palette
+    → Paint window
+    → Nine assessments with status pills
+    → Enable Continue or halt
+    → Return to DeploymentEngine
+```
+
+## Assessments
+
+| # | Check | Pass / fail notes |
+| --- | --- | --- |
+| 1 | Deployment mode | Media or Network from BootConfig |
+| 2 | Deployment server | SMB 445 (skipped on Media) |
+| 3 | Network adapter | FAIL on Network if missing; WARN on Media |
+| 4 | IPv4 | Ignores APIPA and loopback |
+| 5 | Internal storage | vs `MinDiskSizeGB` (default 32) |
+| 6 | RAM | vs `MinMemoryGB` (default 4) |
+| 7 | BIOS mode | UEFI OK; Legacy WARN |
+| 8 | Secure Boot | UEFI db CA readiness |
+| 9 | TPM | Non-blocking OK / WARN |
+
+## Theme
+
+`-Theme Light|Dark`. If the caller omits it, PreCheck uses `BootObject.Theme` when present.
+
+## Related
+
+- [UiHost](/code-reference/uihost/)
+- [Deployment Engine](/code-reference/deployment-engine/)

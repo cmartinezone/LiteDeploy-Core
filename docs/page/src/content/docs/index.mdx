@@ -1,0 +1,44 @@
+---
+title: LiteDeploy
+description: Bare-metal Windows deployment from WinPE — config, share, PreCheck, workflow, and engine.
+template: splash
+hero:
+  title: Set up Windows the way you actually deploy it
+  tagline: BootInitializer maps the source. The engine runs PreCheck and SelectWorkflow. Credentials stay in memory. Setup comes next.
+  actions:
+    - text: Overview
+      link: /guides/overview/
+      icon: right-arrow
+      variant: primary
+    - text: Architecture
+      link: /code-reference/architecture/
+      icon: document
+      variant: minimal
+---
+
+## What LiteDeploy is
+
+LiteDeploy is a JSON-driven bare-metal deployment platform for WinPE and Windows PowerShell 5.1. The admin prepares a share or USB. The device boots WinPE, finds `BootConfig.json`, and runs the runtime chain.
+
+```text
+startnet
+  → BootInitializer
+  → DeploymentEngine
+       → PreCheck
+       → SelectWorkflow
+       → (planned) Setup /NoReboot + handoff
+  → Progress (separate process, read-only)
+```
+
+## Two sides
+
+| Area | Who runs it | Job |
+| --- | --- | --- |
+| **Manager** | Administrator | BootConfig, share ACLs, OEM driver packs, OS media |
+| **Runtime** | Device in WinPE / FullOS | Discover source, validate hardware, select workflow, image |
+
+## Start here
+
+- [Overview](/guides/overview/) — product map and current status
+- [Getting started](/guides/getting-started/) — run the WinPE layout emulator on Windows
+- [BootInitializer](/code-reference/bootinitializer/) — first script after `startnet`

@@ -1,0 +1,69 @@
+---
+title: Overview
+description: What LiteDeploy is, how Manager and Runtime split, and what is implemented today.
+---
+
+LiteDeploy Core is the development repository. Components are split into **Manager** (admin prepares the share) and **Runtime** (the device executes the deployment). A component moves to the production LiteDeploy product only after it is approved.
+
+## Layout
+
+```text
+LiteDeployManager (admin)          LiteDeployRuntime (device)
+─────────────────────────          ──────────────────────────
+Config → BootConfig.json           BootInitializer (startnet)
+DeploymentShareACL                 DeploymentEngine
+ImportOEMDrivers                     → PreCheck
+SyncOEMDrivers                       → SelectWorkflow (+ Media OEM pack)
+ImportOSMedia (planned)              → Setup /NoReboot (planned)
+Shared/OemDriverPacks              Progress | Credentials / WinPECT
+WinPEBuilder (separate repo)       LogWriter | HostShell | UiHost
+DeploymentShare/ (share skeleton)
+```
+
+## Manager
+
+| Component | What it does | Status |
+| --- | --- | --- |
+| Config | Generates `BootConfig.json` for BootWim, DeploymentShare, and Media | Exists |
+| DeploymentShareACL | Share folders, SMB, and NTFS log isolation | Exists |
+| ImportOEMDrivers | Local / download-link / CSV import into `Content/Drivers` | Exists |
+| SyncOEMDrivers | Check or update Dell, HP, and Lenovo packs | Exists |
+| ImportOSMedia | Publishes OS catalog for SelectWorkflow | Placeholder |
+| OemDriverPacks | Shared catalog helpers (Manager + Media) | Exists |
+| [WinPEBuilder](https://github.com/cmartinezone/WinPEBuilder) | Builds boot ISO or `Boot.wim` | Separate repo |
+
+## Runtime
+
+| Component | What it does | Status |
+| --- | --- | --- |
+| [BootInitializer](/code-reference/bootinitializer/) | Discovers config, maps `Z:\`, builds `BootObject`, starts the engine | Exists |
+| [Deployment Engine](/code-reference/deployment-engine/) | Orchestrates PreCheck → SelectWorkflow → state (Setup stubbed) | Phase A |
+| [PreCheck](/code-reference/precheck/) | Nine-point readiness UI | Exists |
+| [SelectWorkflow](/code-reference/select-workflow/) | Computer, workflow, disk, drivers | Exists |
+| [Progress](/code-reference/progress/) | Reads `DeploymentState.json` | Exists |
+| [UiHost](/code-reference/uihost/) | Shared WPF chrome after the share is mapped | Exists |
+| [LogWriter](/code-reference/logwriter/) | CMTrace + NDJSON | Exists |
+| [HostShell](/code-reference/hostshell/) | WinPE console geometry | Exists |
+| Credentials | [DeployVault](https://github.com/cmartinezone/DeployVault) + [WinPECT](https://github.com/cmartinezone/WinPECT) | Separate repos |
+
+## What is implemented vs planned
+
+**Phase A (on `dev`):** BootInitializer → engine → PreCheck → SelectWorkflow → write selection/state JSON. No disk wipe. No Setup.exe.
+
+**Phase B (planned):** Setup `/NoReboot`, WinPECT credential handoff, controlled reboot, FullOS resume.
+
+## Related repositories
+
+These stay in their own GitHub repos. LiteDeploy Core consumes them; it does not copy their source.
+
+| Repository | Role |
+| --- | --- |
+| [WinPEBuilder](https://github.com/cmartinezone/WinPEBuilder) | WinPE boot media (ISO or `Boot.wim` for WDS/PXE) |
+| [DeployVault](https://github.com/cmartinezone/DeployVault) | Encrypted credential vault on the deployment source |
+| [WinPECT](https://github.com/cmartinezone/WinPECT) | Hardware-bound credential transfer from WinPE to FullOS |
+
+## Next
+
+- [Getting started](/guides/getting-started/) — run the Windows test harness
+- [Architecture](/code-reference/architecture/) — how the pieces fit
+- [BootInitializer](/code-reference/bootinitializer/) — first runtime script

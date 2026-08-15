@@ -1,0 +1,42 @@
+---
+title: Deployment Modes
+description: Network share vs USB/ISO Media, and the two BootConfig files.
+---
+
+LiteDeploy has two device modes. Both use the same runtime scripts. The difference is how the deployment source is found.
+
+## Network
+
+`Deployment.Type` is `Network`. Bootstrap `BootConfig.json` on the boot WIM carries `Type` and `NetworkPath`.
+
+1. BootInitializer checks NIC, link, and IP.
+2. It tests SMB port 445 to the server.
+3. It prompts for share credentials (local WPF dialog).
+4. It maps `Z:` with `New-PSDrive` / `New-SmbMapping`.
+5. It **promotes** `Z:\Config\BootConfig.json` as the runtime config.
+
+The boot WIM copy is a pointer only. Downstream scripts use the share file.
+
+## Media
+
+`Deployment.Type` is `Media`. No share password. BootInitializer finds the USB/ISO folder that contains `Content\` and promotes that drive’s `Config\BootConfig.json`.
+
+The WinPEEnv harness defaults to Media so a lab PC does not prompt for credentials or hit Dell/HP/Lenovo.
+
+## Two BootConfig files
+
+| File | Role |
+| --- | --- |
+| Boot WIM `Config\BootConfig.json` | Bootstrap: Type, NetworkPath (or LocalRootName). Optional `Ui.Theme`. |
+| Share or USB `Config\BootConfig.json` | Full policy: Startup, ComputerSetup, Drivers, workflows. |
+
+`BootObject.DeploymentRoot` is the folder that contains `Content\`. After promote, `BootObject.Config` and `ConfigPath` point at the loaded-environment file — not the WIM copy.
+
+## Theme
+
+Optional `Ui.Theme` is `Light` or `Dark` (default Light).
+
+- Bootstrap BootConfig paints the **pre-mount** credential prompt.
+- After promote, the loaded-environment theme is stored on `BootObject.Theme` and passed to PreCheck and SelectWorkflow.
+
+See [BootConfig](/code-reference/bootconfig/) and [BootInitializer](/code-reference/bootinitializer/).

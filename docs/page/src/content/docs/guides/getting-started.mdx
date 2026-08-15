@@ -1,0 +1,96 @@
+---
+title: Getting Started
+description: Run the WinPE layout emulator on a Windows workstation and walk Phase A.
+---
+
+You do not need a real WinPE RAM disk to exercise Phase A. `tests/WinPEEnv` is a generated tree that looks like production WinPE plus a loaded deployment source.
+
+This is **not** MiniNT. There is no `X:` RAM disk and no USB bus. It is the promote layout + BootConfig split so a Windows workstation can run BootInitializer → engine the same way `startnet.cmd` will.
+
+## Prerequisites
+
+- Windows 10/11
+- Windows PowerShell 5.1
+- A clone of [LiteDeploy-Core](https://github.com/cmartinezone/LiteDeploy-Core) on the `dev` branch
+
+## Sync and start
+
+```powershell
+cd C:\src\LiteDeploy-Core\tests\WinPEEnv
+
+# Copy components\ + DeploymentShare\ into Share\
+.\Sync-WinPETestEnv.ps1
+
+# subst Z: → Share, then launch BootInitializer in STA
+.\Start-WinPETestEnv.ps1
+```
+
+`Start-WinPETestEnv.ps1` runs sync again unless you pass `-SkipSync`. After any `.ps1` edit under `components\`, let it sync.
+
+Expected console lines:
+
+```text
+ [WinPEEnv] Promoted 10 scripts → ...\Share\Engine\Scripts
+ [WinPEEnv] subst Z: → C:\src\LiteDeploy-Core\tests\WinPEEnv\Share
+ [WinPEEnv] ExplicitConfigPath = Z:\Config\BootConfig.json
+ [WinPEEnv] Launching STA BootInitializer ...
+```
+
+Confirm the mapping:
+
+```powershell
+Get-PSDrive Z
+dir Z:\Engine\Scripts
+dir Z:\Config\BootConfig.json
+dir Z:\Content\Drivers
+```
+
+## What should appear
+
+Default harness config is **Media** (no share password) with online OEM download **off**.
+
+1. **BootInitializer** (console) — finds `Z:\Config\BootConfig.json`, promotes it as the runtime config, sets `DeploymentRoot` to `Z:\`, starts the engine.
+2. **PreCheck** (WPF) — hardware / config checks against this PC. Click **Continue** if the result is acceptable. Cancel stops the engine; no disk changes.
+3. **SelectWorkflow** (WPF) — computer name, Standard / Intune, disk, drivers. Click **Start Deployment**, then **Yes** on the summary.
+4. **Engine stub** — writes state JSON and **stops**. Setup.exe does not run. Disks are not wiped.
+
+That is a successful Phase A test.
+
+## After a run
+
+| Check | Where |
+| --- | --- |
+| Runtime config | PreCheck “Configuration:” should show `Z:\Config\BootConfig.json` |
+| Deployment root | Console log `DeploymentRoot : Z:\` |
+| Selection / state | `%SystemDrive%\~LiteDeploy\State\` (usually `C:\~LiteDeploy\State\`) |
+| BootInitializer log | `%SystemDrive%\~LiteDeploy\WorkLogs\LiteDeploy.Execution.log` |
+
+There must be **no** password or `PSCredential` in `DeploymentSelection.json`.
+
+## Edit code, then re-run
+
+Edit files under `components\`, not under `Share\Engine\Scripts\` (those copies are overwritten).
+
+```powershell
+cd C:\src\LiteDeploy-Core\tests\WinPEEnv
+.\Start-WinPETestEnv.ps1
+```
+
+## Cleanup
+
+```powershell
+subst Z: /d
+```
+
+State and logs on `C:\~LiteDeploy\` are from the host OS. Delete that folder if you do not want leftover test JSON.
+
+## Preview this documentation site
+
+From the repo, in `docs/page`:
+
+```powershell
+npm install
+npm run dev
+```
+
+Open `http://localhost:4321`.

@@ -1,0 +1,27 @@
+---
+title: Progress
+description: Read-only WPF host that polls DeploymentState.json.
+---
+
+**Script:** `components/Runtime/Progress/LiteDeploy.Progress.ps1`
+
+Progress is a **separate process**. It does not hold credentials. It reads `DeploymentState.json` and paints FullOS or WinPE layouts.
+
+Shared Light/Dark chrome comes from [UiHost](/code-reference/uihost/). Progress keeps its own layouts and polling.
+
+```text
+Engine / runtime writes DeploymentState.json
+        │
+        ▼
+LiteDeploy.Progress.ps1  (read-only)
+        │
+        ▼
+WPF window  +  optional Set-LiteDeployProgress in-process updates
+```
+
+Phase A writes a stub state file after SelectWorkflow. The live task-sequence driver is planned.
+
+## Related
+
+- [UiHost](/code-reference/uihost/)
+- [Deployment Engine](/code-reference/deployment-engine/)
