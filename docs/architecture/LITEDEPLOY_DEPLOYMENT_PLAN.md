@@ -61,8 +61,8 @@ The deployment engine must resolve sibling scripts from `$PSScriptRoot`. It must
 ### Phase A: WinPE initialization and selection
 
 1. `startnet.cmd` launches `LiteDeploy.BootInitilizer.ps1` in Windows PowerShell 5.1 STA mode.
-2. BootInitializer discovers `BootConfig.json`, initializes networking, connects the deployment source, and creates `BootObject`.
-3. BootInitializer invokes `LiteDeploy.DeploymentEngine.ps1` with `& $enginePath -BootObject $bootObject` (same process; credential stays in memory).
+2. BootInitializer may read a **bootstrap** `BootConfig.json` from the boot WIM (Type / NetworkPath only), initializes networking, and connects the deployment source (`Z:` or USB/ISO).
+3. It **promotes** the full runtime `BootConfig.json` from that loaded environment into `BootObject` (`Config`, `ConfigPath`, `DeploymentRoot`) and invokes `LiteDeploy.DeploymentEngine.ps1` with `& $enginePath -BootObject $bootObject` (same process; credential stays in memory). Downstream scripts must not fall back to the boot-image config.
 4. The deployment engine invokes PreCheck; PreCheck closes and returns a structured result.
 5. If PreCheck did not pass or Continue was not selected, the engine stops without changing a disk.
 6. The deployment engine invokes workflow selection in the same process and passes `BootObject`.

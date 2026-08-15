@@ -1,6 +1,6 @@
 # LiteDeploy Project Status and Continuation Handoff
 
-Last architecture review: **August 15, 2026**
+Last architecture review: **August 15, 2026** (OEM audit + loaded-environment BootConfig)
 
 Purpose: preserve the current design decisions, implementation inventory, risks, and next steps so development can resume without reconstructing prior discussions.
 
@@ -158,8 +158,10 @@ Implemented on `dev`:
 - Import local pack, `-DownloadLink`, or supported-models CSV (scaffolds FullOS models + WinPE model)
 - SyncOEMDrivers `-CheckStatus` and `-Update All|"Model"|"sku"` for Dell/HP/Lenovo pack catalogs
 - Shared OemDriverPacks library (catalog refresh, version compare, Media download)
-- Media: `AutoOnlineDownloadOnMedia` (download missing) + `CheckOnlineUpdateOnMedia` (alert if newer; confirm to replace)
+- Media: `AutoOnlineDownloadOnMedia` (download missing) + `CheckOnlineUpdateOnMedia` (alert if newer; confirm to replace) — **after** deployment confirmation; this OEM’s catalog only
+- Runtime consumes **promoted** `BootObject.Config` / `DeploymentRoot` from the loaded share or USB, not the boot WIM
 - `downloadLink` in catalog is reference / last-known URL; live OEM catalogs remain source of truth for “what’s online”
+- Import rewrite preserves model `role`; CSV `unknown` version is treated as empty for compare
 
 Optional later:
 

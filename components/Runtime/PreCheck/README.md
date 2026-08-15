@@ -84,7 +84,9 @@ param(
 
 ## 📁 4. Configuration Resolution (`BootConfig.json`)
 
-Pre-Check resolves its configuration file relative to `$PSScriptRoot` without relying on volatile RAM (`X:\`) or drive-letter scanning:
+When the engine passes `-BootObject`, Pre-Check uses **`BootObject.Config`** (the runtime config promoted from the mounted share or USB). It does **not** replace that with a boot-WIM or repo-relative file.
+
+Standalone / lab fallback (only if `BootObject.Config` is missing):
 
 1. `..\..\Manager\Config\BootConfig.json` (LiteDeploy Core component layout)
 2. `Config\BootConfig.json`

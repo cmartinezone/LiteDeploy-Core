@@ -62,13 +62,13 @@ flowchart TD
         Inline --> Dialog["Show consolidated warning dialog"]
         Dialog --> Focus["Focus first invalid control"]
         Focus --> Inputs
-        Validate -- Yes --> MediaAct{"Media online download / update check?"}
-        MediaAct -- Yes --> PackAct["Invoke-MediaOemDriverPackAction<br/>download missing or alert if newer"]
-        PackAct --> Confirm["Show deployment summary confirmation"]
-        MediaAct -- No --> Confirm
+        Validate -- Yes --> Confirm["Show deployment summary confirmation"]
         Confirm --> Proceed{"Technician selects Yes?"}
         Proceed -- No --> Inputs
-        Proceed -- Yes --> Save["Store selected values in script scope"]
+        Proceed -- Yes --> MediaAct{"Media online download / update check?"}
+        MediaAct -- Yes --> PackAct["Invoke-MediaOemDriverPackAction<br/>from BootObject.DeploymentRoot"]
+        PackAct --> Save["Store selected values in script scope"]
+        MediaAct -- No --> Save
         Save --> Close["Close workflow window"]
     end
 
@@ -91,9 +91,9 @@ flowchart TD
     Media -- Yes --> Online["Online Download option"]
     Media -- No --> Default
     Local --> CheckUp{"CheckOnlineUpdateOnMedia<br/>and Dell/HP/Lenovo?"}
-    CheckUp -- Yes --> Compare["On Start: compare online version<br/>alert if newer; confirm to replace"]
+    CheckUp -- Yes --> Compare["After Confirm Yes: compare this OEM only<br/>alert if newer; confirm to replace"]
     CheckUp -- No --> Manual
-    Online --> Download["On Start: download pack onto media<br/>same Content\\Drivers layout"]
+    Online --> Download["After Confirm Yes: download pack onto media<br/>same Content\\Drivers layout"]
     Download --> Manual{"Technician selects a custom folder?"}
     Compare --> Manual
     Default --> Manual
