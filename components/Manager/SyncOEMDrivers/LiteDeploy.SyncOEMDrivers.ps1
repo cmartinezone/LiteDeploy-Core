@@ -471,6 +471,7 @@ Write-SyncLog "Mode            : $($PSCmdlet.ParameterSetName)"
 $indexPaths = $null
 try {
     $indexPaths = Update-OemVendorIndexes `
+        -VendorFamily $ManufacturerName `
         -OemCatalogsRoot $oemCatalogsRoot `
         -MaxAgeDays $MaxCatalogAgeDays `
         -ForceRefresh:$RefreshCatalog

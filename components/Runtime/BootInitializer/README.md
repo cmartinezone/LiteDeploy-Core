@@ -96,8 +96,8 @@ flowchart TD
 
 | Priority | Scope | Description & Scanned Paths |
 | :--- | :--- | :--- |
-| **Priority 1 (Highest)** | **WinPE RAM (`$env:SystemDrive`)** | `$env:SystemDrive\~LiteDeploy\Config\BootConfig.json`<br>`$env:SystemDrive\*\Config\BootConfig.json`<br>`$env:SystemDrive\Windows\System32\BootConfig.json`<br>*(Bypasses external media scanning when found for instant PXE/WIM boot)* |
-| **Priority 2** | **External Media** | Evaluated **only if not found in RAM**. Scans Removable USB Flash Drives, USB HDDs/SSDs (`BusType -in @('USB','1394','SD')`), CD-ROM/DVD-ROM Optical Media (`<Drive>:\~LiteDeploy\Config\BootConfig.json`, `<Drive>:\*\Config\BootConfig.json`). |
+| **Priority 1 (Highest)** | **WinPE RAM (`$env:SystemDrive`)** | Bootstrap `BootConfig.json` on the boot WIM (Type + NetworkPath only). |
+| **Priority 2** | **Loaded environment** | After mount (Network `Z:`) or USB/ISO discovery (Media), **promote** the full runtime `BootConfig.json` from the deployment source. Downstream scripts (engine, PreCheck, SelectWorkflow) consume this in-memory config — not the boot-image copy. `BootObject.DeploymentRoot` is the share/media folder that contains `Content\`. |
 
 ---
 

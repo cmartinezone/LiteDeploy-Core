@@ -176,6 +176,82 @@ function Get-LiteDeployRuntimeConfig {
     return $null
 }
 
+function Get-LiteDeployExternalMediaRoots {
+    param([string]$RamDrive = "")
+
+    $roots = [System.Collections.Generic.List[string]]::new()
+    $ram = if ($RamDrive) { $RamDrive.TrimEnd(':') } else { if ($env:SystemDrive) { $env:SystemDrive.TrimEnd(':') } else { "X" } }
+
+    try {
+        if (Get-Command Get-Volume -ErrorAction SilentlyContinue) {
+            $externalVolumes = Get-Volume -ErrorAction SilentlyContinue | Where-Object {
+                $vol = $_
+                if (-not $vol.DriveLetter -or $vol.DriveLetter -eq $ram) { return $false }
+                $isRemovable = $vol.DriveType -in @('Removable', 'CD-ROM', 'CDROM')
+                $isUsbBus = $false
+                if ($vol.PSObject.Properties['DiskNumber'] -and $null -ne $vol.DiskNumber) {
+                    $disk = Get-Disk -Number $vol.DiskNumber -ErrorAction SilentlyContinue
+                    if ($disk -and $disk.PSObject.Properties['BusType'] -and $disk.BusType -in @('USB', '1394', 'SD')) {
+                        $isUsbBus = $true
+                    }
+                }
+                return ($isRemovable -or $isUsbBus)
+            }
+            foreach ($vol in $externalVolumes) {
+                $roots.Add("$($vol.DriveLetter):")
+            }
+        }
+    }
+    catch {}
+
+    return @($roots.ToArray())
+}
+
+function Resolve-LiteDeployDeploymentRoot {
+    param(
+        [string]$ConfigPath = "",
+        [string]$DriveLetter = "",
+        [string]$LocalRootName = "~LiteDeploy"
+    )
+
+    $candidates = [System.Collections.Generic.List[string]]::new()
+
+    if (-not [string]::IsNullOrWhiteSpace($ConfigPath) -and (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
+        $configDir = Split-Path -Parent $ConfigPath
+        if ([string]::Equals((Split-Path -Leaf $configDir), "Config", [StringComparison]::OrdinalIgnoreCase)) {
+            $candidates.Add((Split-Path -Parent $configDir))
+        }
+    }
+
+    $drive = if ($DriveLetter) { $DriveLetter.TrimEnd('\') } else { "" }
+    if ($drive -and $drive -notmatch ':$') { $drive = "${drive}:" }
+    if ($drive -and -not [string]::IsNullOrWhiteSpace($LocalRootName)) {
+        $candidates.Add((Join-Path $drive $LocalRootName))
+    }
+    if ($drive) { $candidates.Add($drive) }
+
+    foreach ($candidate in $candidates) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+        $resolved = $null
+        try { $resolved = (Resolve-Path -LiteralPath $candidate -ErrorAction Stop).Path } catch { continue }
+        if (Test-Path -LiteralPath (Join-Path $resolved "Content\Drivers") -PathType Container) {
+            return $resolved
+        }
+        if (Test-Path -LiteralPath (Join-Path $resolved "Content") -PathType Container) {
+            return $resolved
+        }
+    }
+
+    foreach ($candidate in $candidates) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+        if (Test-Path -LiteralPath $candidate -PathType Container) {
+            try { return (Resolve-Path -LiteralPath $candidate -ErrorAction Stop).Path } catch { return $candidate }
+        }
+    }
+
+    return ""
+}
+
 if (-not (Test-Path Variable:global:LiteDeployCredential)) {
     $global:LiteDeployCredential = $null
 }
@@ -548,12 +624,59 @@ function Get-LiteDeployBootConfig {
     $serverReachable = $true; $serverName = ""; $shareMounted = $false; $mountedDrive = ""; $mediaDriveLetter = ""; $engineScriptPath = ""; $userCred = $null
 
     if ($deploymentType -eq "Media") {
+        # Bootstrap BootConfig on the boot WIM (X:) is only a pointer. Prefer the
+        # loaded USB/ISO environment for the full runtime config, engine, and content.
+        $mediaRoots = [System.Collections.Generic.List[string]]::new()
+        foreach ($ext in @(Get-LiteDeployExternalMediaRoots -RamDrive $ramDrive)) {
+            $mediaRoots.Add($ext)
+        }
         if ($FoundConfigPath) {
+            $bootstrapDrive = Split-Path -Qualifier $FoundConfigPath
+            if ($bootstrapDrive -and $bootstrapDrive.TrimEnd(':') -ne $ramDrive.TrimEnd(':')) {
+                $mediaRoots.Insert(0, $bootstrapDrive)
+            }
+        }
+
+        $promoted = $false
+        foreach ($mediaRoot in @($mediaRoots | Select-Object -Unique)) {
+            $runtimeConfig = Get-LiteDeployRuntimeConfig -RootPath $mediaRoot -LocalRootName $localRootName
+            if (-not $runtimeConfig) { continue }
+
+            $FoundConfigPath = $runtimeConfig.Path
+            $cfg = $runtimeConfig.Config
+            $configFound = $true
+            $mediaDriveLetter = $mediaRoot
+            $mountedDrive = $mediaRoot
+            $promoted = $true
+
+            if ($cfg.PSObject.Properties['Metadata'] -and $cfg.Metadata) {
+                if ($cfg.Metadata.PSObject.Properties['Name'] -and $cfg.Metadata.Name) { $appName = $cfg.Metadata.Name }
+                if ($cfg.Metadata.PSObject.Properties['Environment'] -and $cfg.Metadata.Environment) { $envName = $cfg.Metadata.Environment }
+                if ($cfg.Metadata.PSObject.Properties['Version'] -and $cfg.Metadata.Version) { $appVersion = $cfg.Metadata.Version }
+            }
+            if ($cfg.PSObject.Properties['Deployment'] -and $cfg.Deployment -and
+                $cfg.Deployment.PSObject.Properties['LocalRootName'] -and $cfg.Deployment.LocalRootName) {
+                $localRootName = $cfg.Deployment.LocalRootName
+            }
+
+            $engineScriptPath = Resolve-LiteDeployEnginePath -RootPath $mediaRoot
+            if (-not $engineScriptPath -or -not (Test-Path -LiteralPath $engineScriptPath -PathType Leaf)) {
+                $engineScriptPath = Resolve-LiteDeployEnginePath -RootPath (Join-Path $mediaRoot $localRootName)
+            }
+            Write-LiteDeployLog " [SUCCESS] Media runtime configuration promoted from '$($FoundConfigPath)'." -Level "SUCCESS" -ForegroundColor Green
+            break
+        }
+
+        if (-not $promoted -and $FoundConfigPath) {
             $mediaDriveLetter = Split-Path -Qualifier $FoundConfigPath
             if ([string]::IsNullOrWhiteSpace($mediaDriveLetter)) { $mediaDriveLetter = $ramDrive }
             $mountedDrive = $mediaDriveLetter
-            Write-LiteDeployLog " [INFO]    Deployment Mode: Media (Offline Drive: $($mediaDriveLetter))." -Level "INFO" -ForegroundColor DarkCyan
             $engineScriptPath = Resolve-LiteDeployEnginePath -RootPath $mediaDriveLetter
+            Write-LiteDeployLog " [WARNING] Media runtime BootConfig was not found on USB/ISO; using bootstrap '$FoundConfigPath'." -Level "WARNING" -ForegroundColor Yellow
+        }
+
+        if ($mediaDriveLetter) {
+            Write-LiteDeployLog " [INFO]    Deployment Mode: Media (Offline Drive: $($mediaDriveLetter))." -Level "INFO" -ForegroundColor DarkCyan
         }
     }
     elseif ($deploymentType -eq "Network") {
@@ -757,10 +880,22 @@ function Get-LiteDeployBootConfig {
         }
     }
 
+    $deploymentRoot = Resolve-LiteDeployDeploymentRoot `
+        -ConfigPath $FoundConfigPath `
+        -DriveLetter $(if ($mountedDrive) { $mountedDrive } else { $mediaDriveLetter }) `
+        -LocalRootName $localRootName
+    if ($deploymentRoot) {
+        Write-LiteDeployLog " [INFO]    DeploymentRoot   : $deploymentRoot" -Level "INFO" -ForegroundColor DarkCyan
+        if (-not $engineScriptPath -or -not (Test-Path -LiteralPath $engineScriptPath -PathType Leaf)) {
+            $engineScriptPath = Resolve-LiteDeployEnginePath -RootPath $deploymentRoot
+        }
+    }
+
     return [PSCustomObject]@{
         ConfigFound         = $configFound
         ConfigPath          = $FoundConfigPath
         Config              = $cfg
+        DeploymentRoot      = $deploymentRoot
         IsWinPE             = $isWinPE
         DeploymentType      = $deploymentType
         MediaDriveLetter    = $mediaDriveLetter

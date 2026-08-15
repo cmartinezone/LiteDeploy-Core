@@ -63,46 +63,76 @@ if (Test-Path -LiteralPath $driverPathPickerScript) {
     . $driverPathPickerScript
 }
 
-# Shared Dell/HP/Lenovo pack catalog helpers (also used by SyncOEMDrivers).
-$oemPackLib = @(
-    (Join-Path $PSScriptRoot "..\..\Shared\OemDriverPacks\LiteDeploy.OemDriverPackCatalog.ps1"),
-    (Join-Path $PSScriptRoot "..\Shared\OemDriverPacks\LiteDeploy.OemDriverPackCatalog.ps1"),
-    (Join-Path $PSScriptRoot "LiteDeploy.OemDriverPackCatalog.ps1")
-) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
-if ($oemPackLib) {
-    . $oemPackLib
-}
-
 function Resolve-LiteDeployDeploymentRoot {
     param(
         [string]$ConfigPath,
         $BootObject
     )
 
-    if ($BootObject -and $BootObject.PSObject.Properties["DeploymentRoot"] -and $BootObject.DeploymentRoot) {
+    if ($BootObject -and $BootObject.PSObject.Properties["DeploymentRoot"] -and -not [string]::IsNullOrWhiteSpace([string]$BootObject.DeploymentRoot)) {
         return [string]$BootObject.DeploymentRoot
     }
 
-    if (-not [string]::IsNullOrWhiteSpace($ConfigPath) -and (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
-        $configDir = Split-Path -Parent $ConfigPath
-        if ([string]::Equals((Split-Path -Leaf $configDir), "Config", [StringComparison]::OrdinalIgnoreCase)) {
-            return (Split-Path -Parent $configDir)
+    $drive = ""
+    $localRoot = "~LiteDeploy"
+    if ($BootObject) {
+        if ($BootObject.PSObject.Properties["DriveLetter"] -and $BootObject.DriveLetter) {
+            $drive = [string]$BootObject.DriveLetter
+        }
+        elseif ($BootObject.PSObject.Properties["MediaDriveLetter"] -and $BootObject.MediaDriveLetter) {
+            $drive = [string]$BootObject.MediaDriveLetter
+        }
+        if ($BootObject.PSObject.Properties["LocalRootName"] -and $BootObject.LocalRootName) {
+            $localRoot = [string]$BootObject.LocalRootName
         }
     }
 
-    foreach ($candidate in @(
-            (Join-Path $PSScriptRoot "..\.."),
-            (Join-Path $PSScriptRoot "..\..\.."),
-            $PSScriptRoot
-        )) {
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    if (-not [string]::IsNullOrWhiteSpace($ConfigPath) -and (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
+        $configDir = Split-Path -Parent $ConfigPath
+        if ([string]::Equals((Split-Path -Leaf $configDir), "Config", [StringComparison]::OrdinalIgnoreCase)) {
+            $candidates.Add((Split-Path -Parent $configDir))
+        }
+    }
+    if ($drive) {
+        $drive = $drive.TrimEnd('\')
+        if ($drive -notmatch ':$') { $drive = "${drive}:" }
+        $candidates.Add((Join-Path $drive $localRoot))
+        $candidates.Add($drive)
+    }
+    $candidates.Add((Join-Path $PSScriptRoot "..\..\.."))
+    $candidates.Add((Join-Path $PSScriptRoot "..\.."))
+
+    foreach ($candidate in $candidates) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
         $resolved = try { (Resolve-Path -LiteralPath $candidate -ErrorAction Stop).Path } catch { $null }
         if (-not $resolved) { continue }
         if (Test-Path -LiteralPath (Join-Path $resolved "Content\Drivers") -PathType Container) {
             return $resolved
         }
+        if (Test-Path -LiteralPath (Join-Path $resolved "Content") -PathType Container) {
+            return $resolved
+        }
     }
 
-    return $PSScriptRoot
+    return ""
+}
+
+# Shared Dell/HP/Lenovo pack catalog helpers (also used by SyncOEMDrivers).
+$oemPackLibCandidates = [System.Collections.Generic.List[string]]::new()
+$oemPackLibCandidates.Add((Join-Path $PSScriptRoot "LiteDeploy.OemDriverPackCatalog.ps1"))
+$oemPackLibCandidates.Add((Join-Path $PSScriptRoot "..\..\Shared\OemDriverPacks\LiteDeploy.OemDriverPackCatalog.ps1"))
+$oemPackLibCandidates.Add((Join-Path $PSScriptRoot "..\Shared\OemDriverPacks\LiteDeploy.OemDriverPackCatalog.ps1"))
+if ($BootObject -and $BootObject.PSObject.Properties["EngineScriptPath"] -and $BootObject.EngineScriptPath) {
+    $oemPackLibCandidates.Add((Join-Path (Split-Path -Parent ([string]$BootObject.EngineScriptPath)) "LiteDeploy.OemDriverPackCatalog.ps1"))
+}
+if ($BootObject -and $BootObject.PSObject.Properties["DeploymentRoot"] -and $BootObject.DeploymentRoot) {
+    $oemPackLibCandidates.Add((Join-Path ([string]$BootObject.DeploymentRoot) "Engine\Scripts\LiteDeploy.OemDriverPackCatalog.ps1"))
+    $oemPackLibCandidates.Add((Join-Path ([string]$BootObject.DeploymentRoot) "components\Shared\OemDriverPacks\LiteDeploy.OemDriverPackCatalog.ps1"))
+}
+$oemPackLib = @($oemPackLibCandidates | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } | Select-Object -First 1)
+if ($oemPackLib) {
+    . $oemPackLib
 }
 
 # Resolve BootConfig.json in the same order as LiteDeploy.PreCheck.ps1.
@@ -1175,70 +1205,10 @@ if ($null -ne $btnNext) {
             $script:SelectedDriverFolderPath = $script:DetectionResult.RelativePath
         }
 
-        $wantsOnline = $false
-        if ($null -ne $chkOnlineDrivers -and $chkOnlineDrivers.IsChecked) { $wantsOnline = $true }
-        if ($script:SelectedDriverFolderPath -like "*Online Download*") { $wantsOnline = $true }
-        $wantsUpdateCheck = ($null -ne $chkCheckOnlineUpdate -and $chkCheckOnlineUpdate.IsChecked -eq $true)
-
-        if (-not $hasError -and $deploymentType -eq "Media" -and $autoOnlineDownload -and $script:OemPackLibLoaded) {
-            $hardware = if ($script:DetectionResult.Hardware) { $script:DetectionResult.Hardware } else { Get-SystemHardwareIdentity }
-            $localExists = [bool]$script:DetectionResult.IsDetected
-
-            try {
-                if ($wantsOnline -and -not $localExists) {
-                    $downloadResult = Invoke-MediaOemDriverPackAction -DeploymentRoot $script:DeploymentRoot -Hardware $hardware
-                    if ($downloadResult.Action -in @("Downloaded", "Replaced") -and $downloadResult.DriverFolderPath) {
-                        $script:SelectedDriverFolderPath = $downloadResult.DriverFolderPath
-                        $script:DetectionResult.IsDetected = $true
-                        $script:DetectionResult.FullPath = $downloadResult.DriverFolderPath
-                    }
-                    elseif ($downloadResult.Action -in @("PackNotFound", "CompareNotSupported")) {
-                        $confirmFallback = [System.Windows.MessageBox]::Show(
-                            "$($downloadResult.Message)`r`n`r`nContinue with Standard OS In-Box Drivers?",
-                            "Online Driver Pack",
-                            [System.Windows.MessageBoxButton]::YesNo,
-                            [System.Windows.MessageBoxImage]::Warning
-                        )
-                        if ($confirmFallback -ne [System.Windows.MessageBoxResult]::Yes) {
-                            return
-                        }
-                        $script:SelectedDriverFolderPath = "Standard OS In-Box Drivers (Windows Default)"
-                    }
-                }
-                elseif ($localExists -and $wantsUpdateCheck -and $hardware.CompareSupported) {
-                    $checkResult = Invoke-MediaOemDriverPackAction -DeploymentRoot $script:DeploymentRoot -Hardware $hardware -CheckUpdate
-                    if ($checkResult.Action -eq "UpdateAvailable") {
-                        $updateChoice = [System.Windows.MessageBox]::Show(
-                            "$($checkResult.Message)`r`n`r`nDownload and replace the pack on this media?",
-                            "Driver Pack Update Available",
-                            [System.Windows.MessageBoxButton]::YesNo,
-                            [System.Windows.MessageBoxImage]::Information
-                        )
-                        if ($updateChoice -eq [System.Windows.MessageBoxResult]::Yes) {
-                            $replaceResult = Invoke-MediaOemDriverPackAction -DeploymentRoot $script:DeploymentRoot -Hardware $hardware -ForceDownload
-                            if ($replaceResult.DriverFolderPath) {
-                                $script:SelectedDriverFolderPath = $replaceResult.DriverFolderPath
-                            }
-                        }
-                        else {
-                            $script:SelectedDriverFolderPath = $script:DetectionResult.FullPath
-                        }
-                    }
-                    elseif ($checkResult.DriverFolderPath) {
-                        $script:SelectedDriverFolderPath = $checkResult.DriverFolderPath
-                    }
-                }
-                elseif ($localExists -and $script:DetectionResult.FullPath) {
-                    $script:SelectedDriverFolderPath = $script:DetectionResult.FullPath
-                }
-            }
-            catch {
-                Show-DeploymentWarning -Title "Online Driver Pack" -Message (
-                    "Online driver pack action failed:`r`n`r`n$($_.Exception.Message)"
-                )
-                return
-            }
-        }
+        $script:WantsOnlineDownload = $false
+        if ($null -ne $chkOnlineDrivers -and $chkOnlineDrivers.IsChecked) { $script:WantsOnlineDownload = $true }
+        if ($script:SelectedDriverFolderPath -like "*Online Download*") { $script:WantsOnlineDownload = $true }
+        $script:WantsUpdateCheck = ($null -ne $chkCheckOnlineUpdate -and $chkCheckOnlineUpdate.IsChecked -eq $true)
 
         if ($hasError) {
             Show-DeploymentWarning -Message ("Complete the following before starting deployment:`r`n`r`n" + ($validationMessages -join "`r`n"))
@@ -1263,6 +1233,80 @@ if ($null -ne $btnNext) {
         )
 
         if ($confirm -eq [System.Windows.MessageBoxResult]::Yes) {
+            $needsOemLib = $script:WantsOnlineDownload -or $script:WantsUpdateCheck
+            if ($deploymentType -eq "Media" -and $autoOnlineDownload -and $needsOemLib) {
+                if (-not $script:OemPackLibLoaded) {
+                    Show-DeploymentWarning -Title "Online Driver Pack" -Message (
+                        "OemDriverPackCatalog.ps1 was not found beside the engine scripts or under the loaded deployment root.`r`n`r`nCopy LiteDeploy.OemDriverPackCatalog.ps1 to Engine\Scripts to enable Media online download."
+                    )
+                    return
+                }
+                if ([string]::IsNullOrWhiteSpace($script:DeploymentRoot)) {
+                    Show-DeploymentWarning -Title "Online Driver Pack" -Message (
+                        "Deployment root was not resolved from the loaded environment (share or USB media). Cannot download a driver pack."
+                    )
+                    return
+                }
+
+                $hardware = if ($script:DetectionResult.Hardware) { $script:DetectionResult.Hardware } else { Get-SystemHardwareIdentity }
+                $localExists = [bool]$script:DetectionResult.IsDetected
+
+                try {
+                    if ($script:WantsOnlineDownload -and -not $localExists) {
+                        $downloadResult = Invoke-MediaOemDriverPackAction -DeploymentRoot $script:DeploymentRoot -Hardware $hardware
+                        if ($downloadResult.Action -in @("Downloaded", "Replaced") -and $downloadResult.DriverFolderPath) {
+                            $script:SelectedDriverFolderPath = $downloadResult.DriverFolderPath
+                            $script:DetectionResult.IsDetected = $true
+                            $script:DetectionResult.FullPath = $downloadResult.DriverFolderPath
+                        }
+                        elseif ($downloadResult.Action -in @("PackNotFound", "CompareNotSupported")) {
+                            $confirmFallback = [System.Windows.MessageBox]::Show(
+                                "$($downloadResult.Message)`r`n`r`nContinue with Standard OS In-Box Drivers?",
+                                "Online Driver Pack",
+                                [System.Windows.MessageBoxButton]::YesNo,
+                                [System.Windows.MessageBoxImage]::Warning
+                            )
+                            if ($confirmFallback -ne [System.Windows.MessageBoxResult]::Yes) {
+                                return
+                            }
+                            $script:SelectedDriverFolderPath = "Standard OS In-Box Drivers (Windows Default)"
+                        }
+                    }
+                    elseif ($localExists -and $script:WantsUpdateCheck -and $hardware.CompareSupported) {
+                        $checkResult = Invoke-MediaOemDriverPackAction -DeploymentRoot $script:DeploymentRoot -Hardware $hardware -CheckUpdate
+                        if ($checkResult.Action -eq "UpdateAvailable") {
+                            $updateChoice = [System.Windows.MessageBox]::Show(
+                                "$($checkResult.Message)`r`n`r`nDownload and replace the pack on this media?",
+                                "Driver Pack Update Available",
+                                [System.Windows.MessageBoxButton]::YesNo,
+                                [System.Windows.MessageBoxImage]::Information
+                            )
+                            if ($updateChoice -eq [System.Windows.MessageBoxResult]::Yes) {
+                                $replaceResult = Invoke-MediaOemDriverPackAction -DeploymentRoot $script:DeploymentRoot -Hardware $hardware -ForceDownload
+                                if ($replaceResult.DriverFolderPath) {
+                                    $script:SelectedDriverFolderPath = $replaceResult.DriverFolderPath
+                                }
+                            }
+                            else {
+                                $script:SelectedDriverFolderPath = $script:DetectionResult.FullPath
+                            }
+                        }
+                        elseif ($checkResult.DriverFolderPath) {
+                            $script:SelectedDriverFolderPath = $checkResult.DriverFolderPath
+                        }
+                    }
+                    elseif ($localExists -and $script:DetectionResult.FullPath) {
+                        $script:SelectedDriverFolderPath = $script:DetectionResult.FullPath
+                    }
+                }
+                catch {
+                    Show-DeploymentWarning -Title "Online Driver Pack" -Message (
+                        "Online driver pack action failed:`r`n`r`n$($_.Exception.Message)"
+                    )
+                    return
+                }
+            }
+
             $script:DeploymentRequested = $true
             $window.Close()
         }
