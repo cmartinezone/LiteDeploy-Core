@@ -92,6 +92,7 @@ $TimeZone                     = "Eastern Standard Time"# Default system time zon
 $AutoDetectDrivers            = $true                  # Auto-detect driver pack by WMI Make/Model
 $AllowManualSelection         = $true                  # Allow technician to manually select driver pack
 $AutoOnlineDownloadOnMedia    = $true                  # Enable on-the-fly driver downloading when on Media
+$CheckOnlineUpdateOnMedia     = $true                  # When local pack exists on media, compare Dell/HP/Lenovo online versions and alert
 
 # Normalize / validate ImageEngine (case-insensitive input → canonical file name)
 switch -Regex ($ImageEngine.Trim()) {
@@ -197,9 +198,10 @@ if ($Mode -ne 'BootWim') {
         'TimeZone'                     = $TimeZone
     }
     $ConfigObject['Drivers'] = [ordered]@{
-        'AutoDetectDrivers'         = $AutoDetectDrivers
-        'AllowManualSelection'      = $AllowManualSelection
-        'AutoOnlineDownloadOnMedia' = $AutoOnlineDownloadOnMedia
+        'AutoDetectDrivers'          = $AutoDetectDrivers
+        'AllowManualSelection'       = $AllowManualSelection
+        'AutoOnlineDownloadOnMedia'  = $AutoOnlineDownloadOnMedia
+        'CheckOnlineUpdateOnMedia'   = $CheckOnlineUpdateOnMedia
     }
 }
 
@@ -243,6 +245,7 @@ if ($ConfigObject.Contains('Drivers')) {
     Write-Host " AutoDetectDrivers: $($ConfigObject.Drivers.AutoDetectDrivers)"
     Write-Host " AllowManualSel   : $($ConfigObject.Drivers.AllowManualSelection)"
     Write-Host " AutoOnlineOnMedia: $($ConfigObject.Drivers.AutoOnlineDownloadOnMedia)"
+    Write-Host " CheckOnlineUpdate: $($ConfigObject.Drivers.CheckOnlineUpdateOnMedia)"
 }
 Write-Host " Comment          : $(if ([string]::IsNullOrWhiteSpace($ConfigObject._Comments)) { '(blank)' } else { $ConfigObject._Comments })"
 Write-Host " Output File      : $ResolvedOutputPath"

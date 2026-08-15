@@ -20,7 +20,8 @@ So: learn *where* catalogs live from FFU; **do not** copy their per-driver downl
 | --- | --- |
 | Pack download (`-DownloadLink`) | Implemented (`ImportOEMDrivers`) |
 | Manual supported-models CSV | Implemented (`-ModelsCsvPath`) |
-| Online vendor **catalog** sync + status/update | `SyncOEMDrivers` — `-CheckStatus` compares/shows; `-Update All` / `-Update "Model"` / `-Update "sku"` download, replace `Extracted\`, update `catalog.json` |
+| Online vendor **catalog** sync + status/update | `SyncOEMDrivers` — `-CheckStatus` / `-Update All\|"Model"\|"sku"` (shared OemDriverPacks lib) |
+| Media online download / update alert | SelectWorkflow + `Drivers.AutoOnlineDownloadOnMedia` / `CheckOnlineUpdateOnMedia` (same lib; skip if folder exists unless operator confirms replace) |
 
 ## Manager CLI: SyncOEMDrivers
 

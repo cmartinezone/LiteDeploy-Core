@@ -107,341 +107,27 @@ function Write-SyncLog {
     Write-Host " [SyncOEMDrivers]  $Message" -ForegroundColor $ForegroundColor
 }
 
-function Save-RemoteFileNative {
-    param([string]$Uri, [string]$Destination)
-
-    $destinationDir = Split-Path -Parent $Destination
-    if (-not (Test-Path -LiteralPath $destinationDir)) {
-        $null = New-Item -Path $destinationDir -ItemType Directory -Force
-    }
-    if (Test-Path -LiteralPath $Destination) {
-        Remove-Item -LiteralPath $Destination -Force
-    }
-
-    if (Get-Command Start-BitsTransfer -ErrorAction SilentlyContinue) {
-        Write-SyncLog "Downloading (BITS): $Uri"
-        try {
-            Start-BitsTransfer -Source $Uri -Destination $Destination -ErrorAction Stop
-            if (Test-Path -LiteralPath $Destination -PathType Leaf) { return }
-        }
-        catch {
-            Write-SyncLog "BITS failed; falling back to Invoke-WebRequest. $($_.Exception.Message)" -ForegroundColor DarkYellow
-        }
-    }
-
-    Write-SyncLog "Downloading (Invoke-WebRequest): $Uri"
-    Invoke-WebRequest -Uri $Uri -OutFile $Destination -UseBasicParsing -ErrorAction Stop
-}
-
-function Test-CatalogCacheFresh {
-    param([string]$Path, [int]$MaxAgeDays)
-    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
-    $age = ((Get-Date) - (Get-Item -LiteralPath $Path).LastWriteTime).TotalDays
-    return ($age -lt $MaxAgeDays)
-}
-
-function Expand-CabFile {
-    param([string]$CabPath, [string]$XmlPath)
-    if (Test-Path -LiteralPath $XmlPath) {
-        Remove-Item -LiteralPath $XmlPath -Force
-    }
-    $expand = Get-Command expand.exe -ErrorAction SilentlyContinue
-    if (-not $expand) {
-        throw "expand.exe not found (required to extract OEM catalog CABs)."
-    }
-    $p = Start-Process -FilePath $expand.Source -ArgumentList @("`"$CabPath`"", "`"$XmlPath`"") -Wait -PassThru -NoNewWindow
-    if ($p.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $XmlPath -PathType Leaf)) {
-        throw "Failed to expand catalog CAB: $CabPath"
-    }
-}
-
-function Update-OemVendorIndexes {
+function Write-OemPackLog {
     param(
-        [string]$OemCatalogsRoot,
-        [int]$MaxAgeDays,
-        [switch]$ForceRefresh
+        [string]$Message,
+        [ConsoleColor]$ForegroundColor = [ConsoleColor]::Cyan
     )
-
-    $results = [ordered]@{}
-
-    function Sync-CabCatalog {
-        param([string]$Dir, [string]$CabName, [string]$XmlName, [string]$Uri, [string]$Label)
-        $xmlPath = Join-Path $Dir $XmlName
-        $cabPath = Join-Path $Dir $CabName
-        if ($ForceRefresh -or -not (Test-CatalogCacheFresh -Path $xmlPath -MaxAgeDays $MaxAgeDays)) {
-            if (-not (Test-Path -LiteralPath $Dir)) { $null = New-Item -Path $Dir -ItemType Directory -Force }
-            Save-RemoteFileNative -Uri $Uri -Destination $cabPath
-            Expand-CabFile -CabPath $cabPath -XmlPath $xmlPath
-            Remove-Item -LiteralPath $cabPath -Force -ErrorAction SilentlyContinue
-            Write-SyncLog "$Label refreshed: $xmlPath" -ForegroundColor Green
-        }
-        else {
-            Write-SyncLog "$Label cache fresh: $xmlPath"
-        }
-        return $xmlPath
-    }
-
-    $dellDir = Join-Path $OemCatalogsRoot "Dell"
-    $results["DellIndex"] = Sync-CabCatalog -Dir $dellDir -CabName "CatalogIndexPC.cab" -XmlName "CatalogIndexPC.xml" `
-        -Uri "https://downloads.dell.com/catalog/CatalogIndexPC.cab" -Label "Dell CatalogIndexPC"
-    $results["DellPack"] = Sync-CabCatalog -Dir $dellDir -CabName "DriverPackCatalog.cab" -XmlName "DriverPackCatalog.xml" `
-        -Uri "https://downloads.dell.com/catalog/DriverPackCatalog.cab" -Label "Dell DriverPackCatalog"
-
-    $hpDir = Join-Path $OemCatalogsRoot "HP"
-    $results["HPIndex"] = Sync-CabCatalog -Dir $hpDir -CabName "platformList.cab" -XmlName "PlatformList.xml" `
-        -Uri "https://hpia.hpcloud.hp.com/ref/platformList.cab" -Label "HP PlatformList"
-    $results["HPPack"] = Sync-CabCatalog -Dir $hpDir -CabName "HPClientDriverPackCatalog.cab" -XmlName "HPClientDriverPackCatalog.xml" `
-        -Uri "https://ftp.hp.com/pub/caps-softpaq/cmit/HPClientDriverPackCatalog.cab" -Label "HP DriverPackCatalog"
-
-    $lenovoDir = Join-Path $OemCatalogsRoot "Lenovo"
-    $lenovoXml = Join-Path $lenovoDir "catalogv2.xml"
-    if ($ForceRefresh -or -not (Test-CatalogCacheFresh -Path $lenovoXml -MaxAgeDays $MaxAgeDays)) {
-        if (-not (Test-Path -LiteralPath $lenovoDir)) { $null = New-Item -Path $lenovoDir -ItemType Directory -Force }
-        Save-RemoteFileNative -Uri "https://download.lenovo.com/cdrt/td/catalogv2.xml" -Destination $lenovoXml
-        Write-SyncLog "Lenovo catalogv2 refreshed: $lenovoXml" -ForegroundColor Green
-    }
-    else {
-        Write-SyncLog "Lenovo catalogv2 cache fresh: $lenovoXml"
-    }
-    $results["Lenovo"] = $lenovoXml
-
-    return $results
+    Write-SyncLog -Message $Message -ForegroundColor $ForegroundColor
 }
 
-function Add-PackMapHit {
-    param(
-        $Map,
-        [string]$Vendor,
-        [string]$Sku,
-        [string]$Name,
-        [string]$Url,
-        [string]$Version,
-        [string]$ReleaseDate
-    )
-    if ([string]::IsNullOrWhiteSpace($Sku)) { return }
-    $key = $Sku.Trim().ToUpperInvariant()
-    $candidate = [pscustomobject]@{
-        Vendor      = $Vendor
-        Sku         = $key
-        Name        = $Name
-        Url         = $Url
-        Version     = $Version
-        ReleaseDate = $ReleaseDate
-    }
-    if (-not $Map.ContainsKey($key)) {
-        $Map[$key] = [System.Collections.Generic.List[object]]::new()
-        $Map[$key].Add($candidate)
-        return
-    }
-    # Keep the newest by ReleaseDate, then Version string.
-    $existing = $Map[$key][0]
-    if (Test-OnlinePackNewer -LocalVersion $existing.Version -LocalReleaseDate $existing.ReleaseDate -OnlineVersion $Version -OnlineReleaseDate $ReleaseDate) {
-        $Map[$key].Clear()
-        $Map[$key].Add($candidate)
-    }
+$script:OemDriverPackCatalogLib = @(
+    (Join-Path $PSScriptRoot "..\..\Shared\OemDriverPacks\LiteDeploy.OemDriverPackCatalog.ps1"),
+    (Join-Path $PSScriptRoot "..\Shared\OemDriverPacks\LiteDeploy.OemDriverPackCatalog.ps1")
+) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+if (-not $script:OemDriverPackCatalogLib) {
+    throw "Shared OEM pack catalog library not found (LiteDeploy.OemDriverPackCatalog.ps1)."
 }
+. $script:OemDriverPackCatalogLib
 
-function Test-OnlinePackNewer {
-    param(
-        [string]$LocalVersion,
-        [string]$LocalReleaseDate,
-        [string]$OnlineVersion,
-        [string]$OnlineReleaseDate
-    )
-
-    $localDate = $null
-    $onlineDate = $null
-    if (-not [string]::IsNullOrWhiteSpace($LocalReleaseDate)) {
-        [void][datetime]::TryParse($LocalReleaseDate, [ref]$localDate)
-    }
-    if (-not [string]::IsNullOrWhiteSpace($OnlineReleaseDate)) {
-        [void][datetime]::TryParse($OnlineReleaseDate, [ref]$onlineDate)
-    }
-    if ($null -ne $localDate -and $null -ne $onlineDate) {
-        if ($onlineDate.Date -gt $localDate.Date) { return $true }
-        if ($onlineDate.Date -lt $localDate.Date) { return $false }
-    }
-
-    $lv = if ($LocalVersion) { $LocalVersion.Trim() } else { "" }
-    $ov = if ($OnlineVersion) { $OnlineVersion.Trim() } else { "" }
-    if ([string]::IsNullOrWhiteSpace($ov)) { return $false }
-    if ([string]::IsNullOrWhiteSpace($lv)) { return $true }
-    if ([string]::Equals($lv, $ov, [StringComparison]::OrdinalIgnoreCase)) { return $false }
-
-    # Dell-style A00..A99
-    $lm = [regex]::Match($lv, '^A(\d{2})$', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-    $om = [regex]::Match($ov, '^A(\d{2})$', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-    if ($lm.Success -and $om.Success) {
-        return ([int]$lm.Groups[1].Value -lt [int]$om.Groups[1].Value)
-    }
-    # Dotted numeric versions (2026.01 / 1.2.3)
-    $lParts = @($lv -split '[^\d]+' | Where-Object { $_ -match '^\d+$' } | ForEach-Object { [int]$_ })
-    $oParts = @($ov -split '[^\d]+' | Where-Object { $_ -match '^\d+$' } | ForEach-Object { [int]$_ })
-    if ($lParts.Count -gt 0 -and $oParts.Count -gt 0) {
-        $n = [Math]::Max($lParts.Count, $oParts.Count)
-        for ($i = 0; $i -lt $n; $i++) {
-            $l = if ($i -lt $lParts.Count) { $lParts[$i] } else { 0 }
-            $o = if ($i -lt $oParts.Count) { $oParts[$i] } else { 0 }
-            if ($o -gt $l) { return $true }
-            if ($o -lt $l) { return $false }
-        }
-        return $false
-    }
-
-    # Different opaque strings with no date signal → treat as update available so the table outlines OnlineVersion.
-    return $true
-}
-
-function Get-VendorPackMaps {
-    param($IndexPaths)
-
-    $map = @{}
-
-    if ($IndexPaths["DellPack"] -and (Test-Path -LiteralPath $IndexPaths["DellPack"])) {
-        Write-SyncLog "Parsing Dell DriverPackCatalog (pack versions)..."
-        try {
-            $settings = New-Object System.Xml.XmlReaderSettings
-            $settings.IgnoreWhitespace = $true
-            $settings.IgnoreComments = $true
-            $reader = [System.Xml.XmlReader]::Create($IndexPaths["DellPack"], $settings)
-            $baseLocation = "downloads.dell.com"
-            try {
-                while ($reader.Read()) {
-                    if ($reader.NodeType -eq [System.Xml.XmlNodeType]::Element -and $reader.LocalName -eq "DriverPackManifest") {
-                        $bl = $reader.GetAttribute("baseLocation")
-                        if ($bl) { $baseLocation = $bl.Trim().TrimEnd('/') }
-                    }
-                    if ($reader.NodeType -ne [System.Xml.XmlNodeType]::Element -or $reader.LocalName -ne "DriverPackage") {
-                        continue
-                    }
-                    $type = $reader.GetAttribute("type")
-                    if ($type -and $type -match '(?i)winpe') { continue }
-
-                    $dellVersion = $reader.GetAttribute("dellVersion")
-                    $vendorVersion = $reader.GetAttribute("vendorVersion")
-                    $dateTime = $reader.GetAttribute("dateTime")
-                    $path = $reader.GetAttribute("path")
-                    $version = if ($dellVersion) { $dellVersion } elseif ($vendorVersion) { $vendorVersion } else { "" }
-                    $releaseDate = ""
-                    if ($dateTime) {
-                        $dt = $null
-                        if ([datetime]::TryParse($dateTime, [ref]$dt)) {
-                            $releaseDate = $dt.ToString("yyyy-MM-dd")
-                        }
-                    }
-                    $url = if ($path) { "https://$baseLocation/$path" } else { "" }
-
-                    $sub = $reader.ReadSubtree()
-                    $doc = New-Object System.Xml.XmlDocument
-                    $doc.Load($sub)
-                    $sub.Dispose()
-
-                    $nameNode = $doc.SelectSingleNode("//*[local-name()='Name']/*[local-name()='Display']")
-                    $name = if ($nameNode) { $nameNode.InnerText.Trim() } else { [IO.Path]::GetFileName($path) }
-                    $modelNodes = @($doc.SelectNodes("//*[local-name()='SupportedSystems']//*[local-name()='Model']"))
-                    foreach ($mn in $modelNodes) {
-                        $systemId = $mn.GetAttribute("systemID")
-                        $modelName = $mn.GetAttribute("name")
-                        if ([string]::IsNullOrWhiteSpace($modelName) -and $name) { $modelName = $name }
-                        Add-PackMapHit -Map $map -Vendor "Dell" -Sku $systemId -Name $modelName -Url $url -Version $version -ReleaseDate $releaseDate
-                    }
-                }
-            }
-            finally {
-                $reader.Dispose()
-            }
-        }
-        catch {
-            Write-SyncLog "Dell DriverPackCatalog parse warning: $($_.Exception.Message)" -ForegroundColor DarkYellow
-        }
-    }
-
-    if ($IndexPaths["HPPack"] -and (Test-Path -LiteralPath $IndexPaths["HPPack"])) {
-        Write-SyncLog "Parsing HP Client DriverPackCatalog (pack versions)..."
-        try {
-            [xml]$hp = Get-Content -LiteralPath $IndexPaths["HPPack"] -Raw -Encoding UTF8
-            $softById = @{}
-            foreach ($sp in @($hp.SelectNodes("//*[local-name()='SoftPaq']"))) {
-                $idNode = $sp.SelectSingleNode("*[local-name()='Id']")
-                if (-not $idNode -or [string]::IsNullOrWhiteSpace($idNode.InnerText)) { continue }
-                $id = $idNode.InnerText.Trim()
-                $nameNode = $sp.SelectSingleNode("*[local-name()='Name']")
-                $verNode = $sp.SelectSingleNode("*[local-name()='Version']")
-                $urlNode = $sp.SelectSingleNode("*[local-name()='Url']")
-                $dateNode = $sp.SelectSingleNode("*[local-name()='DateReleased']")
-                $softById[$id] = [pscustomobject]@{
-                    Id      = $id
-                    Name    = if ($nameNode) { $nameNode.InnerText } else { $id }
-                    Version = if ($verNode) { $verNode.InnerText } else { "" }
-                    Url     = if ($urlNode) { $urlNode.InnerText } else { "" }
-                    Date    = if ($dateNode) { $dateNode.InnerText } else { "" }
-                }
-            }
-            foreach ($prod in @($hp.SelectNodes("//*[local-name()='ProductOSDriverPack']"))) {
-                $sysNode = $prod.SelectSingleNode("*[local-name()='SystemId']")
-                $nameNode = $prod.SelectSingleNode("*[local-name()='SystemName']")
-                $softNode = $prod.SelectSingleNode("*[local-name()='SoftPaqId']")
-                if (-not $sysNode -or -not $softNode) { continue }
-                $sysRaw = $sysNode.InnerText
-                $sysName = if ($nameNode) { $nameNode.InnerText } else { "" }
-                $softId = $softNode.InnerText.Trim()
-                if (-not $sysRaw -or -not $softById.ContainsKey($softId)) { continue }
-                $sp = $softById[$softId]
-                $releaseDate = ""
-                $dt = $null
-                if ($sp.Date -and [datetime]::TryParse($sp.Date, [ref]$dt)) {
-                    $releaseDate = $dt.ToString("yyyy-MM-dd")
-                }
-                foreach ($sku in @($sysRaw -split '[,;]' | ForEach-Object { $_.Trim() } | Where-Object { $_ })) {
-                    Add-PackMapHit -Map $map -Vendor "HP" -Sku $sku -Name $sysName -Url $sp.Url -Version $sp.Version -ReleaseDate $releaseDate
-                }
-            }
-        }
-        catch {
-            Write-SyncLog "HP DriverPackCatalog parse warning: $($_.Exception.Message)" -ForegroundColor DarkYellow
-        }
-    }
-
-    if ($IndexPaths["Lenovo"] -and (Test-Path -LiteralPath $IndexPaths["Lenovo"])) {
-        Write-SyncLog "Parsing Lenovo catalogv2 (SCCM pack versions)..."
-        try {
-            [xml]$lenovo = Get-Content -LiteralPath $IndexPaths["Lenovo"] -Raw -Encoding UTF8
-            foreach ($m in @($lenovo.SelectNodes("//*[local-name()='Model']"))) {
-                $name = $m.GetAttribute("name")
-                $types = @($m.SelectNodes(".//*[local-name()='Type']") | ForEach-Object { $_.InnerText.Trim() } | Where-Object { $_ })
-                $sccmNodes = @($m.SelectNodes(".//*[local-name()='SCCM']"))
-                if ($sccmNodes.Count -eq 0 -or $types.Count -eq 0) { continue }
-
-                $best = $null
-                foreach ($s in $sccmNodes) {
-                    $os = $s.GetAttribute("os")
-                    $ver = $s.GetAttribute("version")
-                    $date = $s.GetAttribute("date")
-                    $url = ($s.InnerText).Trim()
-                    $score = 0
-                    if ($os -match '(?i)win11') { $score += 200 }
-                    elseif ($os -match '(?i)win10') { $score += 100 }
-                    $dt = $null
-                    if ($date -and [datetime]::TryParse($date, [ref]$dt)) { $score += [int]$dt.ToString("yyyyMMdd") }
-                    $cand = [pscustomobject]@{ Score = $score; Version = $ver; Date = $date; Url = $url; Os = $os }
-                    if ($null -eq $best -or $cand.Score -gt $best.Score) { $best = $cand }
-                }
-                if ($null -eq $best) { continue }
-                foreach ($t in $types) {
-                    $sku = ($t -replace '\s+', '')
-                    if ($sku.Length -gt 4) { $sku = $sku.Substring(0, 4) }
-                    Add-PackMapHit -Map $map -Vendor "Lenovo" -Sku $sku -Name $name -Url $best.Url -Version $best.Version -ReleaseDate $best.Date
-                }
-            }
-        }
-        catch {
-            Write-SyncLog "Lenovo catalogv2 parse warning: $($_.Exception.Message)" -ForegroundColor DarkYellow
-        }
-    }
-
-    Write-SyncLog ("Vendor pack version entries: {0}" -f $map.Count)
-    return $map
-}
+# Compatibility wrappers for older SyncOEMDrivers call sites
+function Save-RemoteFileNative { param([string]$Uri,[string]$Destination) Save-OemRemoteFile -Uri $Uri -Destination $Destination }
+function Expand-CabFile { param([string]$CabPath,[string]$XmlPath) Expand-OemCatalogCab -CabPath $CabPath -XmlPath $XmlPath }
+function Test-CatalogCacheFresh { param([string]$Path,[int]$MaxAgeDays) Test-OemCatalogCacheFresh -Path $Path -MaxAgeDays $MaxAgeDays }
 
 function Get-LocalDriverModels {
     param(
@@ -538,15 +224,6 @@ function Get-CsvAllowList {
         }
     }
     return @($list.ToArray())
-}
-
-function Resolve-VendorFamily {
-    param([string]$ManufacturerName, [string]$ManufacturerId)
-    $blob = ("{0} {1}" -f $ManufacturerName, $ManufacturerId).ToLowerInvariant()
-    if ($blob -match 'dell') { return "Dell" }
-    if ($blob -match 'lenovo') { return "Lenovo" }
-    if ($blob -match '\bhp\b|hewlett') { return "HP" }
-    return $ManufacturerName
 }
 
 function New-StatusRows {
@@ -666,27 +343,6 @@ function New-StatusRows {
     }
 
     return @($rows.ToArray())
-}
-
-function Resolve-PackFromVendorMap {
-    param(
-        [object]$LocalModel,
-        [hashtable]$VendorMap
-    )
-
-    $family = Resolve-VendorFamily -ManufacturerName $LocalModel.ManufacturerName -ManufacturerId $LocalModel.ManufacturerId
-    $best = $null
-    foreach ($sku in @($LocalModel.SystemSku)) {
-        $key = ([string]$sku).ToUpperInvariant()
-        if (-not $VendorMap.ContainsKey($key)) { continue }
-        foreach ($hit in $VendorMap[$key]) {
-            if ($hit.Vendor -ne $family -and -not [string]::IsNullOrWhiteSpace($family)) { continue }
-            if ($null -eq $best -or (Test-OnlinePackNewer -LocalVersion $best.Version -LocalReleaseDate $best.ReleaseDate -OnlineVersion $hit.Version -OnlineReleaseDate $hit.ReleaseDate)) {
-                $best = $hit
-            }
-        }
-    }
-    return $best
 }
 
 function Invoke-ModelPackUpdate {
