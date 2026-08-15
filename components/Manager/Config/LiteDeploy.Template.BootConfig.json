@@ -45,7 +45,8 @@
       "Drivers": {
         "AutoDetectDrivers": true,
         "AllowManualSelection": true,
-        "AutoOnlineDownloadOnMedia": true
+        "AutoOnlineDownloadOnMedia": true,
+        "CheckOnlineUpdateOnMedia": true
       },
       "_Comments": "Configuration for Network Deployment Share"
     },
@@ -79,7 +80,8 @@
       "Drivers": {
         "AutoDetectDrivers": true,
         "AllowManualSelection": true,
-        "AutoOnlineDownloadOnMedia": true
+        "AutoOnlineDownloadOnMedia": true,
+        "CheckOnlineUpdateOnMedia": true
       },
       "_Comments": "Configuration for Standalone USB / ISO Media"
     }

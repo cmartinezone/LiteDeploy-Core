@@ -19,13 +19,39 @@ So: learn *where* catalogs live from FFU; **do not** copy their per-driver downl
 | Layer | LiteDeploy today |
 | --- | --- |
 | Pack download (`-DownloadLink`) | Implemented (`ImportOEMDrivers`) |
-| Manual supported-models CSV | Implemented (`-ModelsCsvPath`) |
-| Online vendor **catalog** sync + status/update | `SyncOEMDrivers` — `-CheckStatus` / `-Update All\|"Model"\|"sku"` (shared OemDriverPacks lib) |
-| Media online download / update alert | SelectWorkflow + `Drivers.AutoOnlineDownloadOnMedia` / `CheckOnlineUpdateOnMedia` (same lib; skip if folder exists unless operator confirms replace) |
+| Manual supported-models CSV | Implemented (`-ModelsCsvPath`) — scaffolds models; does not download packs |
+| Online vendor **catalog** sync + status/update | `SyncOEMDrivers` — `-CheckStatus` / `-Update All\|"Model"\|"sku"` |
+| Shared catalog library | [`components/Shared/OemDriverPacks/`](../../components/Shared/OemDriverPacks/) |
+| Media online download / update alert | SelectWorkflow + `AutoOnlineDownloadOnMedia` / `CheckOnlineUpdateOnMedia` |
+| Online OEMs | **Dell, HP, Lenovo only** (Surface out of scope) |
+
+## End-to-end example (Dell CSV → Sync → Media)
+
+```powershell
+# 1) Register two supported Dell models (empty Extracted + WinPE model)
+.\ImportOEMDrivers\LiteDeploy.ImportOEMDrivers.ps1 `
+  -DeploymentRoot "D:\DeploymentShare" `
+  -ManufacturerId "Dell Inc." `
+  -ManufacturerName "Dell" `
+  -ModelsCsvPath ".\Examples\Dell-SupportedModels.csv"
+
+# 2) Compare local catalog to Dell/HP/Lenovo pack indexes
+.\SyncOEMDrivers\LiteDeploy.SyncOEMDrivers.ps1 `
+  -DeploymentRoot "D:\DeploymentShare" `
+  -CheckStatus
+
+# 3) Download/replace packs for UpdateAvailable models
+.\SyncOEMDrivers\LiteDeploy.SyncOEMDrivers.ps1 `
+  -DeploymentRoot "D:\DeploymentShare" `
+  -Update All -Force
+```
+
+On **USB Media**, SelectWorkflow can download a missing pack for the current PC, or alert if a newer Dell/HP/Lenovo pack exists when `CheckOnlineUpdateOnMedia` is enabled.
 
 ## Manager CLI: SyncOEMDrivers
 
-Script: [`components/Manager/SyncOEMDrivers/LiteDeploy.SyncOEMDrivers.ps1`](../../components/Manager/SyncOEMDrivers/LiteDeploy.SyncOEMDrivers.ps1)
+Script: [`components/Manager/SyncOEMDrivers/LiteDeploy.SyncOEMDrivers.ps1`](../../components/Manager/SyncOEMDrivers/LiteDeploy.SyncOEMDrivers.ps1)  
+Library: [`components/Shared/OemDriverPacks/LiteDeploy.OemDriverPackCatalog.ps1`](../../components/Shared/OemDriverPacks/LiteDeploy.OemDriverPackCatalog.ps1)
 
 ### `-CheckStatus`
 
@@ -84,6 +110,8 @@ Optional: `-ManufacturerName Dell` to scope. `-Force` replaces existing `Extract
 
 **Update always means:** download pack → replace **`Extracted\`** → upsert **`catalog.json`**.
 
+`downloadLink` on the catalog model is a **last-known / reference URL**. Sync prefers it when present; otherwise resolves a fresh URL from the live OEM pack catalog.
+
 ### `-RefreshCatalog`
 
 Forces re-download of vendor catalogs into `Content\Temp\OemCatalogs\` (default: refresh when cache older than 7 days).
@@ -93,6 +121,17 @@ Forces re-download of vendor catalogs into `Content\Temp\OemCatalogs\` (default:
 | Dell | `DriverPackCatalog.cab` | `CatalogIndexPC.cab` |
 | HP | `HPClientDriverPackCatalog.cab` | `platformList.cab` |
 | Lenovo | `catalogv2.xml` (SCCM pack nodes) | — |
+
+## Media runtime (SelectWorkflow)
+
+When `Deployment.Type = Media`:
+
+| Policy | Behavior |
+| --- | --- |
+| `Drivers.AutoOnlineDownloadOnMedia` | If the model folder is **missing**, download pack onto local media (same `Content\Drivers` layout) |
+| `Drivers.CheckOnlineUpdateOnMedia` | If the folder **exists**, Dell/HP/Lenovo compare → **alert** if newer; replace only after technician confirms |
+
+Shared implementation: `Invoke-MediaOemDriverPackAction` in OemDriverPacks.
 
 ## How FFU does it (summary)
 
@@ -104,15 +143,14 @@ FFU is a **two-phase** Manager flow:
 
 They prefer **latest individual drivers** (SupportAssist / HPIA / System Update style), not only enterprise DriverPack CABs.
 
-### Per OEM
+### Per OEM (FFU reference)
 
 | OEM | Catalog / discovery | Cache age | Match key (WMI) | Pack acquisition |
 | --- | --- | --- | --- | --- |
-| **Dell** (client ≤ Win11) | `https://downloads.dell.com/catalog/CatalogIndexPC.cab` → `CatalogIndexPC.xml` | Refresh if XML &gt; ~7 days | `MS_SystemInformation.SystemSku` (`SystemId`) | Index gives per-model CAB URL → download CAB → parse model XML → pick latest `DRVR` components by arch → download each EXE |
-| **Dell** (server path) | `Catalog.cab` | Same | Model name (legacy) | Different pathway |
-| **HP** | `https://hpia.hpcloud.hp.com/ref/platformList.cab` → `PlatformList.xml` | ~7 days | `MS_SystemInformation.BaseboardProduct` (`SystemId`) | Per SystemID: `https://hpia.hpcloud.hp.com/ref/<SystemID>/<release>.cab` → XML → SoftPaq EXEs |
-| **Lenovo** | **PSREF** search API (not only `catalogv2.xml`) | Live query | Machine Type (4-char MTM); `SystemProductName` / model | Model catalog XML → package XMLs → EXE extract. FFU notes `catalogv2.xml` misses many EDU/consumer SKUs (300w/500w/…) |
-| **Microsoft Surface** | Scrape Download Center model index + per-model page | Cached JSON | Friendly `Model` string | MSI/ZIP for Win10/Win11 |
+| **Dell** (client ≤ Win11) | `CatalogIndexPC.cab` | ~7 days | SystemSku | Individual SoftPaq-style harvest (FFU) — we take pack CAB URL instead |
+| **HP** | `platformList.cab` | ~7 days | BaseboardProduct | SoftPaq EXEs (FFU) — we use Client DriverPack catalog |
+| **Lenovo** | PSREF + `catalogv2.xml` | Live / cached | Machine Type (4-char) | We use `catalogv2.xml` SCCM packs in v1 |
+| **Microsoft Surface** | Download Center scrape | Cached JSON | Model string | **Out of scope** for LiteDeploy online sync |
 
 ### FFU artifacts — what we take / skip
 
@@ -123,7 +161,7 @@ They prefer **latest individual drivers** (SupportAssist / HPIA / System Update 
 | `Drivers.json` selection list | Close to our supported-models CSV |
 | Individual SoftPaq/PDK EXE harvest | **Skip** |
 | `DriverMapping.json` matching repo | **Skip** — use `catalog.json` + `Extracted\` only |
-| BITS download | Already in `ImportOEMDrivers` |
+| BITS download | Already in `ImportOEMDrivers` / shared lib |
 
 ## LiteDeploy layout
 
@@ -131,8 +169,10 @@ They prefer **latest individual drivers** (SupportAssist / HPIA / System Update 
 Content\Temp\OemCatalogs\
   Dell\
     CatalogIndexPC.xml          ← from CatalogIndexPC.cab
+    DriverPackCatalog.xml
   HP\
-    PlatformList.xml            ← from platformList.cab
+    PlatformList.xml
+    HPClientDriverPackCatalog.xml
   Lenovo\
     catalogv2.xml
 
@@ -145,14 +185,14 @@ Content\Drivers\
       Extracted\                ← model role=fullOs / Setup.exe
 ```
 
-### Match keys we already agreed
+### Match keys
 
 | Manufacturer | `systemSku` source |
 | --- | --- |
 | Dell | SystemSKU |
 | HP | BaseBoardProduct |
 | Lenovo | Machine Type (MTM first 4) |
-| Surface / Microsoft | Model name (and any SKU we store) |
+| Other / Surface | Manual import only (model name / any SKU you store) |
 
 `manufacturerId` remains exact WMI `Win32_ComputerSystem.Manufacturer` (e.g. `Dell Inc.`).
 
@@ -163,6 +203,7 @@ Content\Drivers\
 - **CSV as allow-list** — internal supported models stay authoritative; OEM indexes are discovery  
 - **CheckStatus table** — share vs vendor index in the shell before updating  
 - **Update scoped** — `-Update All` / `-Update "Model"` / `-Update "sku"` (always pack → Extracted)  
+- **Media: no silent overwrite** — existing model folder is kept unless technician confirms update  
 - **No Edge/PSREF cookie hacks in v1** — Lenovo uses `catalogv2.xml` first  
 - **Reference only** — learn catalog URLs from FFU; rewrite LiteDeploy-owned PowerShell
 
@@ -171,4 +212,5 @@ Content\Drivers\
 1. ~~CLI surface: `-CheckStatus` / `-Update*` / Temp OemCatalogs refresh~~  
 2. ~~Version compare (local `version` vs pack catalog) + outline `OnlineVersion`~~  
 3. ~~`-Update All|"Model"|"sku"` auto-resolve pack URL, download, replace, update catalog~~  
-4. Prefer WinPE-type packs for the WinPE model compare (optional)
+4. ~~Shared OemDriverPacks lib + Media download / update alert~~  
+5. Prefer WinPE-type packs for the WinPE model compare (optional)  

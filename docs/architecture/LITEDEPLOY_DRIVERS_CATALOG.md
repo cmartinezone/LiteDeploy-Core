@@ -49,7 +49,7 @@ Content/Drivers/
 | `releaseDate` | Vendor release date (`YYYY-MM-DD`) |
 | `importedDate` | Import into the share (`YYYY-MM-DD`) |
 | `format` | `exe` \| `cab` |
-| `downloadLink` | Optional original vendor URL |
+| `downloadLink` | Optional last-known vendor URL (reference; Sync may reuse it, else resolves live OEM catalog URL) |
 | `enabled` | Hide when false |
 | `path` | Repository-relative model folder |
 
@@ -84,8 +84,9 @@ No FFU-style `DriverMapping.json`: Setup.exe receives the FullOS model folder pa
 | Concern | Where |
 | --- | --- |
 | BootConfig auto-detect / manual pick | `ComputerSetup` / `Drivers` in BootConfig |
-| Online download during Media | `Drivers.AutoOnlineDownloadOnMedia` + shared OemDriverPacks |
+| Online download during Media | `Drivers.AutoOnlineDownloadOnMedia` + [OemDriverPacks](../../components/Shared/OemDriverPacks/) |
 | Check for newer pack on Media | `Drivers.CheckOnlineUpdateOnMedia` (Dell/HP/Lenovo compare; alert only unless confirmed) |
 | INF-level inventory | Inside each model’s `Extracted/` |
-| Import / Driver Manager | [`ImportOEMDrivers`](../../components/Manager/ImportOEMDrivers/) |
+| Import / CSV scaffold | [`ImportOEMDrivers`](../../components/Manager/ImportOEMDrivers/) |
 | OEM vendor catalog sync | [`SyncOEMDrivers`](../../components/Manager/SyncOEMDrivers/) ([design](./LITEDEPLOY_OEM_CATALOG_SYNC.md)) |
+| Shared catalog helpers | [`OemDriverPacks`](../../components/Shared/OemDriverPacks/) |

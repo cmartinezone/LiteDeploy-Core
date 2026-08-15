@@ -168,7 +168,7 @@ Reserved rows use `Visibility="Hidden"` rather than `Collapsed`, so validation m
 
 The selected disk remains blue with white text after the DataGrid loses keyboard focus.
 
-If validation succeeds, a confirmation dialog summarizes the computer name, workflow, disk, and driver choice before closing the window.
+If validation succeeds, Media may run an OEM pack action (download missing pack, or alert if a newer Dell/HP/Lenovo pack exists), then a confirmation dialog summarizes the computer name, workflow, disk, and driver choice before closing the window.
 
 ---
 
@@ -235,4 +235,5 @@ powershell.exe -STA -ExecutionPolicy Bypass -File "%SystemDrive%\Engine\Scripts\
 & "$PSScriptRoot\LiteDeploy.SelectWorkFlow.ps1"
 ```
 
-Keep `LiteDeploy.SelecWorkflowDriverPicker.ps1` beside the main script in the deployed `Engine\Scripts` directory.
+Keep `LiteDeploy.SelecWorkflowDriverPicker.ps1` beside the main script in the deployed `Engine\Scripts` directory.  
+Also deploy `LiteDeploy.OemDriverPackCatalog.ps1` (from Shared/OemDriverPacks) where SelectWorkflow can dot-source it for Media online pack support.

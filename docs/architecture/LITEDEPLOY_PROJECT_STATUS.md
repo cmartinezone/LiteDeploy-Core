@@ -1,6 +1,6 @@
 # LiteDeploy Project Status and Continuation Handoff
 
-Last architecture review: **August 12, 2026**
+Last architecture review: **August 15, 2026**
 
 Purpose: preserve the current design decisions, implementation inventory, risks, and next steps so development can resume without reconstructing prior discussions.
 
@@ -9,6 +9,9 @@ Related documents:
 - [LITEDEPLOY_DEPLOYMENT_PLAN.md](LITEDEPLOY_DEPLOYMENT_PLAN.md)
 - [LITEDEPLOY_DEPLOYMENT_DIAGRAM.md](LITEDEPLOY_DEPLOYMENT_DIAGRAM.md)
 - [LITEDEPLOY_CATALOG_WORKFLOW_SPEC.md](LITEDEPLOY_CATALOG_WORKFLOW_SPEC.md)
+- [LITEDEPLOY_DRIVERS_CATALOG.md](LITEDEPLOY_DRIVERS_CATALOG.md)
+- [LITEDEPLOY_OEM_CATALOG_SYNC.md](LITEDEPLOY_OEM_CATALOG_SYNC.md)
+- [LITEDEPLOY_DEV_BRANCH.md](LITEDEPLOY_DEV_BRANCH.md)
 - [LITEDEPLOY_UI_HOST.md](LITEDEPLOY_UI_HOST.md) — shared WPF chrome for PreCheck / SelectWorkflow / Progress
 - [WinPEBuilder](https://github.com/cmartinezone/WinPEBuilder) — ISO and `Boot.wim` for WDS/PXE
 - [DeployVault](https://github.com/cmartinezone/DeployVault) — credential vault
@@ -98,16 +101,16 @@ Implemented:
 - Internal disk discovery with PowerShell 5.1 single-object binding protection
 - Capacity, Estimated Usage, and Available Space calculation
 - Persistent blue disk selection after focus changes
-- Driver auto-detection and custom WinPE folder picker
+- Driver auto-detection (`catalog.json` SKU/model + folder), custom WinPE folder picker
+- Media online pack download (`AutoOnlineDownloadOnMedia`) and optional Dell/HP/Lenovo update alert (`CheckOnlineUpdateOnMedia`)
 - Fixed-position red validation messages and Windows Forms warnings
 - Strict BootConfig discovery
+- Structured selection return for DeploymentEngine
 
 Required changes:
 
-- Accept `BootObject` directly.
 - Load OS editions from ImportOSMedia `catalog.json`.
 - Load workflows and optional deployment profiles from JSON.
-- Return a structured deployment selection containing stable IDs and numeric disk number.
 - Preserve current UI behavior while making its content catalog-driven.
 
 ### OS media importer
@@ -140,6 +143,29 @@ Required additions:
 - Add explicit schema-version handling.
 - Consider publishing SHA-256 hashes for Setup and image payloads.
 - Always resolve an edition by the compound key `(osId, editionId)`.
+
+### OEM drivers (Manager + Media)
+
+Locations:
+
+- `components/Manager/ImportOEMDrivers/`
+- `components/Manager/SyncOEMDrivers/`
+- `components/Shared/OemDriverPacks/`
+- Design: [LITEDEPLOY_OEM_CATALOG_SYNC.md](LITEDEPLOY_OEM_CATALOG_SYNC.md), [LITEDEPLOY_DRIVERS_CATALOG.md](LITEDEPLOY_DRIVERS_CATALOG.md)
+
+Implemented on `dev`:
+
+- Import local pack, `-DownloadLink`, or supported-models CSV (scaffolds FullOS models + WinPE model)
+- SyncOEMDrivers `-CheckStatus` and `-Update All|"Model"|"sku"` for Dell/HP/Lenovo pack catalogs
+- Shared OemDriverPacks library (catalog refresh, version compare, Media download)
+- Media: `AutoOnlineDownloadOnMedia` (download missing) + `CheckOnlineUpdateOnMedia` (alert if newer; confirm to replace)
+- `downloadLink` in catalog is reference / last-known URL; live OEM catalogs remain source of truth for “what’s online”
+
+Optional later:
+
+- WinPE-type pack compare for the WinPE model
+- Lenovo coverage beyond `catalogv2.xml`
+- Richer EXE expand on Media
 
 ### Progress UI
 

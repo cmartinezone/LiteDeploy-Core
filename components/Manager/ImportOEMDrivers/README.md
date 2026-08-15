@@ -3,7 +3,8 @@
 LiteDeployManager tool that imports an OEM driver pack into the deployment share and upserts `Content/Drivers/catalog.json`.
 
 **Script:** `LiteDeploy.ImportOEMDrivers.ps1`  
-**Catalog contract:** [LITEDEPLOY_DRIVERS_CATALOG.md](../../../docs/architecture/LITEDEPLOY_DRIVERS_CATALOG.md)
+**Catalog contract:** [LITEDEPLOY_DRIVERS_CATALOG.md](../../../docs/architecture/LITEDEPLOY_DRIVERS_CATALOG.md)  
+**Online catalog sync (separate tool):** [SyncOEMDrivers](../SyncOEMDrivers/) · [OEM catalog sync design](../../../docs/architecture/LITEDEPLOY_OEM_CATALOG_SYNC.md)
 
 ## What it does
 
@@ -15,11 +16,11 @@ LiteDeployManager tool that imports an OEM driver pack into the deployment share
 6. Upserts manufacturer / model entries in `catalog.json` (including the WinPE model)
 7. Or registers many supported FullOS models from a **CSV** (`-ModelsCsvPath`) — still ensures the WinPE model
 
-Vendor catalog discovery (Dell `CatalogIndexPC`, HP `platformList`, Lenovo/Surface) is **not implemented yet**. Design (learned from FFU, LiteDeploy-owned): [LITEDEPLOY_OEM_CATALOG_SYNC.md](../../../docs/architecture/LITEDEPLOY_OEM_CATALOG_SYNC.md). Indexes will land under `Content\Temp\OemCatalogs\`.
+**CSV mode does not download packs** unless a row includes `DownloadLink`. Use [SyncOEMDrivers](../SyncOEMDrivers/) afterward to compare/fill Dell/HP/Lenovo packs from online catalogs (`Content\Temp\OemCatalogs\`).
 
 ## Supported-models CSV
 
-Pass `-ModelsCsvPath` with manufacturer identity to register internal supported models (no pack required).
+Pass `-ModelsCsvPath` with manufacturer identity to register internal supported models (scaffold / allow-list).
 
 Comma-separated by default (`-CsvDelimiter ","`).
 
@@ -31,15 +32,14 @@ Comma-separated by default (`-CsvDelimiter ","`).
 | `FolderName` | no | Defaults to Model |
 | `Version` | no | Falls back to `-Version`, else `unknown` |
 | `Format` | no | `exe` / `cab`; falls back to `-Format`, else `cab` |
-| `DownloadLink` | no | Optional URL stored on the model |
+| `DownloadLink` | no | Optional URL stored on the model (reference; also usable later by Sync) |
 
-Example (`Examples/Dell-SupportedModels.csv`):
+### Example: two Dell models
 
 ```csv
 Model,SystemSku
 Latitude 7450,0C09
 Latitude 7440,0C08
-OptiPlex 7010,05A1;05A2
 ```
 
 ```powershell
@@ -48,11 +48,29 @@ OptiPlex 7010,05A1;05A2
   -ManufacturerId "Dell Inc." `
   -ManufacturerName "Dell" `
   -ModelsCsvPath ".\Examples\Dell-SupportedModels.csv" `
-  -Version "2026.01" `
+  -Version "unknown" `
   -Format cab
 ```
 
-Creates empty FullOS `Extracted\` folders, ensures the manufacturer **WinPE model** (`WinPE\Extracted\`, catalog `modelId: winpe`), and upserts `catalog.json`.
+**Result**
+
+```text
+Content\Drivers\
+  catalog.json
+  Dell\
+    WinPE\Extracted\             ← role: winpe (always ensured)
+    Latitude 7450\Extracted\     ← systemSku ["0C09"], empty until Sync/import pack
+    Latitude 7440\Extracted\     ← systemSku ["0C08"], empty until Sync/import pack
+```
+
+Then fill packs:
+
+```powershell
+.\..\SyncOEMDrivers\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -CheckStatus
+.\..\SyncOEMDrivers\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -Update All -Force
+```
+
+Shipped examples: `Examples/Dell-SupportedModels.csv`, `Examples/Lenovo-SupportedModels.csv`.
 
 ## Staging vs published layout
 
@@ -99,4 +117,5 @@ Default never calls curl. `-UseCurl` fails closed if no curl binary is found.
 
 - `.exe` packs are stored in the model folder; populate `Extracted\` by passing an extracted folder as `-SourcePath`.
 - `.cab` packs expand under `Content\Temp`, then promote to `Extracted\`.
+- `downloadLink` in `catalog.json` is mainly a reference / last-known URL; Sync can use it if present, otherwise resolves from the live OEM pack catalog.
 - Runtime: FullOS `manufacturerId` + `systemSku` → model `path\Extracted` for Setup; WinPE uses the manufacturer **WinPE model** (`modelId: winpe`) → `path\Extracted`.
