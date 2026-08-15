@@ -20,7 +20,7 @@ So: learn *where* catalogs live from FFU; **do not** copy their per-driver downl
 | --- | --- |
 | Pack download (`-DownloadLink`) | Implemented (`ImportOEMDrivers`) |
 | Manual supported-models CSV | Implemented (`-ModelsCsvPath`) |
-| Online vendor **catalog** sync + status/update | `SyncOEMDrivers` — Dell/HP/Lenovo **pack version** compare in `-CheckStatus`; `-Update*` uses stored `downloadLink` |
+| Online vendor **catalog** sync + status/update | `SyncOEMDrivers` — `-CheckStatus` compares versions; `-CheckUpdate` downloads newer packs (URL from OEM catalog); `-Update*` also auto-resolves URLs |
 
 ## Manager CLI: SyncOEMDrivers
 
@@ -68,7 +68,14 @@ Typical columns:
 
 Without `-ModelsCsvPath`, vendor-only “new” rows are **not** dumped (indexes are huge). Pass CSV to surface **new** models/SKUs.
 
-### `-UpdateAll` / model / SKU
+### `-CheckUpdate`
+
+Same compare as `-CheckStatus`, then downloads every FullOS model with `UpdateAvailable`.  
+Pack URL is resolved from the OEM catalog (no need for a stored `downloadLink`).
+
+```powershell
+.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -CheckUpdate -Force
+```
 
 Re-download packs into the deployment share for matching catalog rows that have a `downloadLink` (calls `ImportOEMDrivers`).
 
@@ -173,5 +180,5 @@ Content\Drivers\
 
 1. ~~CLI surface: `-CheckStatus` / `-Update*` / Temp OemCatalogs refresh~~  
 2. ~~Version compare (local `version` vs pack catalog) + outline `OnlineVersion`~~  
-3. Auto-fill `downloadLink` from pack catalog on `-Update*` when missing  
+3. ~~`-CheckUpdate` + auto-resolve pack URL from catalog when `downloadLink` missing~~  
 4. Prefer WinPE-type packs for the WinPE model compare (optional)

@@ -13,14 +13,25 @@ Unlike FFU, we do **not** build a `DriverMapping.json` matching repo or harvest 
 
 ## Modes
 
-### Check status (shell table)
+### Check status (compare only)
 
-Compares **local version** vs **online pack version** and outlines newer packs:
+Compares **local version** vs **online pack version** and outlines newer packs (no download):
 
 ```powershell
 .\LiteDeploy.SyncOEMDrivers.ps1 `
   -DeploymentRoot "D:\DeploymentShare" `
   -CheckStatus
+```
+
+### Check update (compare + download)
+
+Same compare, then downloads every `UpdateAvailable` pack. Pack URL is taken from the OEM catalog when `downloadLink` is missing:
+
+```powershell
+.\LiteDeploy.SyncOEMDrivers.ps1 `
+  -DeploymentRoot "D:\DeploymentShare" `
+  -CheckUpdate `
+  -Force
 ```
 
 Table columns include `LocalVersion`, `OnlineVersion`, `OnlineDate`, `Status`.  
@@ -46,7 +57,9 @@ Optional allow-list CSV to surface SKUs not yet in your catalog:
 | `NoVendorIndex` | Pack catalog missing/failed for that OEM |
 | `WinPeModel` | Manufacturer WinPE model (not compared to FullOS packs) |
 
-### Update
+### Update (scoped)
+
+Also auto-resolves pack URL from the OEM catalog when `downloadLink` is missing:
 
 ```powershell
 .\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -UpdateAll -ManufacturerName Dell -Force
@@ -54,7 +67,7 @@ Optional allow-list CSV to surface SKUs not yet in your catalog:
 .\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -SystemSku "0C09" -Force
 ```
 
-Updates call `ImportOEMDrivers` with the model’s stored `downloadLink` → download pack → extract into FullOS model `Extracted\`.
+Downloads → FullOS model `Extracted\` via `ImportOEMDrivers`.
 
 ## Vendor pack catalog cache
 
