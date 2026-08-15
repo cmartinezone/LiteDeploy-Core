@@ -14,4 +14,4 @@ Content\Temp\
 
 `ImportOEMDrivers` downloads online packs here, extracts CABs here, then copies into `Content\Drivers\<Manufacturer>\<Model>\Extracted`. The manufacturer WinPE **model** publishes to `Content\Drivers\<Manufacturer>\WinPE\Extracted`.
 
-`SyncOEMDrivers` refreshes `OemCatalogs\`, runs `-CheckStatus` (shell table vs `catalog.json`), and `-UpdateAll` / `-Model` / `-SystemSku`. Design: [LITEDEPLOY_OEM_CATALOG_SYNC.md](../../../docs/architecture/LITEDEPLOY_OEM_CATALOG_SYNC.md).
+`SyncOEMDrivers` refreshes `OemCatalogs\`, runs `-CheckStatus` (shell table vs `catalog.json`), and `-Update All` / `-Update "Model"` / `-Update "sku"`. Design: [LITEDEPLOY_OEM_CATALOG_SYNC.md](../../../docs/architecture/LITEDEPLOY_OEM_CATALOG_SYNC.md).

@@ -1,62 +1,54 @@
 # SyncOEMDrivers
 
-LiteDeployManager tool that refreshes OEM vendor indexes, compares them to your share’s `Content/Drivers/catalog.json`, and can re-download **driver packs** into each model’s `Extracted\` folder.
-
-Unlike FFU, we do **not** build a `DriverMapping.json` matching repo or harvest individual SoftPaqs. The runtime resolves the FullOS model folder (`catalog.json` + SKU / UI), then **`Setup.exe` receives that directory path as a switch**. WinPE drivers are a separate catalog **model** (`modelId: winpe`) under the manufacturer: `WinPE\Extracted\`.
+LiteDeployManager tool that refreshes Dell/HP/Lenovo **driver pack** catalogs, compares pack **versions** to your share’s `Content/Drivers/catalog.json`, and can download/replace packs.
 
 **Script:** `LiteDeploy.SyncOEMDrivers.ps1`  
 **Design:** [LITEDEPLOY_OEM_CATALOG_SYNC.md](../../../docs/architecture/LITEDEPLOY_OEM_CATALOG_SYNC.md)
 
+## Supported OEMs (online catalog)
+
+**Dell, HP, Lenovo only.** Surface is out of scope.
+
 ## Modes
 
-### Check status (shell table)
+### Check status (compare + show only)
 
 ```powershell
-.\LiteDeploy.SyncOEMDrivers.ps1 `
-  -DeploymentRoot "D:\DeploymentShare" `
-  -CheckStatus
+.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -CheckStatus
 ```
 
-Optional allow-list CSV to surface **new** vendor SKUs not yet in your catalog:
+Shows `LocalVersion` vs `OnlineVersion` / `OnlineDate`. Does **not** download.
+
+### Update (download + replace + update catalog)
 
 ```powershell
-.\LiteDeploy.SyncOEMDrivers.ps1 `
-  -DeploymentRoot "D:\DeploymentShare" `
-  -CheckStatus `
-  -ManufacturerName "Dell" `
-  -ModelsCsvPath "..\ImportOEMDrivers\Examples\Dell-SupportedModels.csv"
+# All models with a newer pack online
+.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -Update All -Force
+
+# One model (name or modelId)
+.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -Update "Latitude 7450" -Force
+
+# One SystemSKU / Machine Type
+.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -Update "0C09" -Force
 ```
 
-| Status | Meaning |
+Resolves pack URL from the OEM catalog when needed → downloads → replaces `Extracted\` → upserts `catalog.json`.
+
+| Status (from check) | Meaning |
 | --- | --- |
-| `Current` | In our catalog; SKU still in vendor index |
-| `UpdateReady` | Has `downloadLink` — safe to `-Update*` |
+| `Current` | Local pack is current |
+| `UpdateAvailable` | Newer pack online |
 | `MissingContent` | Catalog row exists; `Extracted` empty/missing |
-| `MissingFromVendor` | Local SKU not found in vendor index |
-| `NewInAllowList` | CSV SKU in vendor index but not in our catalog |
-| `NoVendorIndex` | Index missing/failed for that OEM |
+| `MissingFromVendor` | SKU not in vendor pack catalog |
+| `NewInAllowList` | CSV SKU online but not in our share yet |
+| `WinPeModel` | Manufacturer WinPE model (not FullOS pack compare) |
 
-### Update
+## Vendor pack catalog cache
 
-```powershell
-# All models with downloadLink (optionally scoped)
-.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -UpdateAll -ManufacturerName Dell -Force
+Under `Content\Temp\OemCatalogs\` (refresh if older than 7 days, or `-RefreshCatalog`):
 
-# One model (name or modelId substring)
-.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -Model "Latitude 7450" -Force
-
-# One SKU
-.\LiteDeploy.SyncOEMDrivers.ps1 -DeploymentRoot "D:\DeploymentShare" -SystemSku "0C09" -Force
-```
-
-Updates call `ImportOEMDrivers` with the model’s stored `downloadLink` → download pack → extract into FullOS model `Extracted\`. The manufacturer **WinPE model** is separate. No FFU-style mapping file is written.
-
-## Vendor index cache
-
-Downloaded under `Content\Temp\OemCatalogs\` (refresh if older than 7 days, or pass `-RefreshCatalog`):
-
-| OEM | Source |
+| OEM | Sources |
 | --- | --- |
-| Dell | `CatalogIndexPC.cab` |
-| HP | HPIA `platformList.cab` |
-| Lenovo | `catalogv2.xml` |
+| Dell | `DriverPackCatalog.cab` (versions) + `CatalogIndexPC.cab` |
+| HP | `HPClientDriverPackCatalog.cab` (versions) + `platformList.cab` |
+| Lenovo | `catalogv2.xml` (SCCM pack version/date/url) |
