@@ -1,0 +1,35 @@
+{
+  "$schemaVersion": "1.0",
+  "Metadata": {
+    "Name": "LiteDeploy",
+    "Environment": "WinPEEnv",
+    "Version": "1.0"
+  },
+  "Deployment": {
+    "Type": "Media",
+    "NetworkPath": null,
+    "LocalRootName": "~LiteDeploy"
+  },
+  "Startup": {
+    "SkipHardwarePreCheck": false,
+    "SkipHardwareRequirments": false
+  },
+  "ComputerSetup": {
+    "PromptForComputerName": true,
+    "ComputerNamePrefix": null,
+    "MaxComputerNameLength": 15,
+    "PromptForComputerDescription": true,
+    "DriveSelection": true,
+    "ImageEngine": "Setup.exe",
+    "Language": "en-US",
+    "KeyboardLocale": "0409:00000409",
+    "TimeZone": "Eastern Standard Time"
+  },
+  "Drivers": {
+    "AutoDetectDrivers": true,
+    "AllowManualSelection": true,
+    "AutoOnlineDownloadOnMedia": false,
+    "CheckOnlineUpdateOnMedia": false
+  },
+  "_Comments": "Harness loaded-environment BootConfig (USB/share). Online OEM download is off so a workstation run does not hit Dell/HP/Lenovo."
+}

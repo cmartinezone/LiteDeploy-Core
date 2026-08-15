@@ -48,7 +48,7 @@ DeploymentShare\
     Deployments\
 ```
 
-Approved Core scripts promote into `Engine\Scripts` (include `LiteDeploy.OemDriverPackCatalog.ps1` for Media online driver packs). [WinPEBuilder](https://github.com/cmartinezone/WinPEBuilder) writes ISO/`Boot.wim` under `Content\BootMedia`. [DeployVault](https://github.com/cmartinezone/DeployVault) stays on the share but is not part of this skeleton (no vault files in git).
+Approved Core scripts promote into `Engine\Scripts` (include `LiteDeploy.OemDriverPackCatalog.ps1` for Media online driver packs). The same promote list is used by the workstation emulator at [tests/WinPEEnv](../tests/WinPEEnv/) (`Sync-WinPETestEnv.ps1`). Windows runbook: [WINDOWS_TEST_GUIDE.md](../tests/WinPEEnv/WINDOWS_TEST_GUIDE.md). [WinPEBuilder](https://github.com/cmartinezone/WinPEBuilder) writes ISO/`Boot.wim` under `Content\BootMedia`. [DeployVault](https://github.com/cmartinezone/DeployVault) stays on the share but is not part of this skeleton (no vault files in git).
 
 [LiteDeploy.SetDeploymentShareAcl.ps1](../components/Manager/DeploymentShareACL/LiteDeploy.SetDeploymentShareAcl.ps1) applies SMB and NTFS permissions onto a provisioned copy of this tree.
 

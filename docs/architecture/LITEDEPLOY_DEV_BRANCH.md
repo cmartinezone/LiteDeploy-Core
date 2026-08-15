@@ -35,7 +35,7 @@ LiteDeploy engine and Manager/Runtime work integrates on **`dev`**, not on `main
 - `Drivers.AutoOnlineDownloadOnMedia` / `Drivers.CheckOnlineUpdateOnMedia` (Media pack download + update alert, after confirm)  
 - `BootObject.DeploymentRoot` + promoted runtime `BootConfig` from the loaded share/USB (not the boot WIM)  
 - Runtime/OEM audit: StrictMode-safe bootstrap parse; `DeploymentRoot` requires `Content\`; Sync prefers catalog `downloadLink`; WinPE metadata not clobbered by FullOS import; Lenovo 4-char MTM lookup  
-
+- `tests/WinPEEnv/` — generated WinPE + share layout (`Sync-WinPETestEnv.ps1` / `Start-WinPETestEnv.ps1`)  
 - Workflow v1 schema + Standard / Intune examples under `DeploymentShare/WorkFlows`
 - Drivers catalog v1 (`manufacturerId` / `systemSku` / `Extracted` + WinPE model) under `DeploymentShare/Content/Drivers`
 
@@ -47,3 +47,4 @@ LiteDeploy engine and Manager/Runtime work integrates on **`dev`**, not on `main
 - [LITEDEPLOY_DRIVERS_CATALOG.md](LITEDEPLOY_DRIVERS_CATALOG.md) — drivers catalog reference  
 - [LITEDEPLOY_OEM_CATALOG_SYNC.md](LITEDEPLOY_OEM_CATALOG_SYNC.md) — OEM pack sync + Media download  
 - [components/README.md](../../components/README.md) — Manager vs Runtime map  
+- [WINDOWS_TEST_GUIDE.md](../../tests/WinPEEnv/WINDOWS_TEST_GUIDE.md) — run the WinPE layout emulator on Windows  
