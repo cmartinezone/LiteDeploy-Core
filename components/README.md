@@ -18,7 +18,7 @@ Production script **file names** stay the same (`LiteDeploy.PreCheck.ps1`, etc.)
 | [DeploymentShareACL](Manager/DeploymentShareACL/) | Share folders, SMB, and NTFS log isolation |
 | [ImportOEMDrivers](Manager/ImportOEMDrivers/) | Local/`-DownloadLink`/CSV import into `Content/Drivers` + catalog |
 | [SyncOEMDrivers](Manager/SyncOEMDrivers/) | Check/update Dell/HP/Lenovo driver packs vs online catalogs |
-| [ImportOSMedia](Manager/ImportOSMedia/) | Planned OS importer → `Content/OperatingSystems/catalog.json` |
+| [ImportOSMedia](Manager/ImportOSMedia/) | OS importer → `Content/OperatingSystems/catalog.json` |
 
 ## Shared
 

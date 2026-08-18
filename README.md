@@ -13,7 +13,7 @@ Config → BootConfig.json           BootInitializer (startnet)
 DeploymentShareACL                 DeploymentEngine
 ImportOEMDrivers                     → PreCheck
 SyncOEMDrivers                       → SelectWorkflow (+ Media OEM pack)
-ImportOSMedia (planned)              → Setup /NoReboot (planned)
+ImportOSMedia                       → Setup /NoReboot (planned)
 Shared/OemDriverPacks              Progress | Credentials / WinPECT
 WinPEBuilder (separate repo)       LogWriter | HostShell | UiHost
 DeploymentShare/ (share skeleton)
@@ -27,7 +27,7 @@ DeploymentShare/ (share skeleton)
 | [DeploymentShareACL](components/Manager/DeploymentShareACL) | Share folders, SMB, and NTFS log isolation | Exists |
 | [ImportOEMDrivers](components/Manager/ImportOEMDrivers) | Local/`-DownloadLink`/CSV import into `Content/Drivers` + catalog | Exists |
 | [SyncOEMDrivers](components/Manager/SyncOEMDrivers) | `-CheckStatus` / `-Update All\|"Model"\|"sku"` vs Dell/HP/Lenovo pack catalogs | Exists |
-| [ImportOSMedia](components/Manager/ImportOSMedia) | Publishes OS catalog for SelectWorkflow / engine | Placeholder |
+| [ImportOSMedia](components/Manager/ImportOSMedia) | Publishes OS catalog for SelectWorkflow / engine | Exists |
 | [OemDriverPacks](components/Shared/OemDriverPacks) | Shared Dell/HP/Lenovo catalog helpers (Manager + Media) | Exists |
 | [WinPEBuilder](https://github.com/cmartinezone/WinPEBuilder) | Builds boot ISO or `Boot.wim` for WDS/PXE | Separate repo |
 | [DeploymentShare](DeploymentShare) | Initial deployment-share folder layout | Exists |

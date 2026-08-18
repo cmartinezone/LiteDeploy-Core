@@ -52,4 +52,4 @@ Approved Core scripts promote into `Engine\Scripts` (include `LiteDeploy.OemDriv
 
 [LiteDeploy.SetDeploymentShareAcl.ps1](../components/Manager/DeploymentShareACL/LiteDeploy.SetDeploymentShareAcl.ps1) applies SMB and NTFS permissions onto a provisioned copy of this tree.
 
-OS and package catalogs remain placeholders until ImportOSMedia / package publishing. Workflow and drivers catalogs are v1 reference contracts — see [LITEDEPLOY_WORKFLOW_SCHEMA.md](../docs/architecture/LITEDEPLOY_WORKFLOW_SCHEMA.md), [LITEDEPLOY_DRIVERS_CATALOG.md](../docs/architecture/LITEDEPLOY_DRIVERS_CATALOG.md), and [LITEDEPLOY_OEM_CATALOG_SYNC.md](../docs/architecture/LITEDEPLOY_OEM_CATALOG_SYNC.md).
+OS catalogs are produced by [ImportOSMedia](../components/Manager/ImportOSMedia/). Package catalogs remain placeholders until package publishing exists. Workflow and drivers catalogs are v1 reference contracts — see [LITEDEPLOY_WORKFLOW_SCHEMA.md](../docs/architecture/LITEDEPLOY_WORKFLOW_SCHEMA.md), [LITEDEPLOY_DRIVERS_CATALOG.md](../docs/architecture/LITEDEPLOY_DRIVERS_CATALOG.md), and [LITEDEPLOY_OEM_CATALOG_SYNC.md](../docs/architecture/LITEDEPLOY_OEM_CATALOG_SYNC.md).

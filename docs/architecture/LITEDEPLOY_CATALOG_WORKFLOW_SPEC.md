@@ -107,13 +107,13 @@ Display names may change without breaking references. IDs must not contain a pas
 
 Driver pack catalog contract: [LITEDEPLOY_DRIVERS_CATALOG.md](LITEDEPLOY_DRIVERS_CATALOG.md).
 
-The initial empty share tree in this repository is [DeploymentShare](../../DeploymentShare). It uses the folder name `WorkFlows`. OS/package catalogs in that tree are placeholder-only until ImportOSMedia and package publishing exist; workflow and drivers catalogs have v1 reference schemas.
+The initial empty share tree in this repository is [DeploymentShare](../../DeploymentShare). It uses the folder name `WorkFlows`. OS catalogs are produced by ImportOSMedia; package catalogs in that tree remain placeholder-only until package publishing exists. Workflow and drivers catalogs have v1 reference schemas.
 
 Forward-slash paths stored in JSON are repository-relative. Runtime code resolves them against the validated deployment root and normalizes them with `Join-Path`. Catalog paths must not escape the deployment root through `..`, rooted paths, or alternate data streams.
 
 ## 4. Operating-system catalog
 
-`components/Manager/ImportOSMedia/LiteDeploy.ImportOSMedia.ps1` (planned) will create:
+`components/Manager/ImportOSMedia/LiteDeploy.ImportOSMedia.ps1` creates:
 
 ```text
 Content/OperatingSystems/<media-folder>/os.json

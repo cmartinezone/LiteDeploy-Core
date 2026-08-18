@@ -8,7 +8,7 @@ Administrator-side components. These run on a management workstation or build ho
 | [DeploymentShareACL](DeploymentShareACL/) | Exists — share + ACL provisioning |
 | [ImportOEMDrivers](ImportOEMDrivers/) | Exists — local/`-DownloadLink`/CSV import into `Content/Drivers` + catalog |
 | [SyncOEMDrivers](SyncOEMDrivers/) | Exists — `-CheckStatus` / `-Update All|"Model"|"sku"` vs Dell/HP/Lenovo indexes |
-| [ImportOSMedia](ImportOSMedia/) | Placeholder — bring local importer here when ready |
+| [ImportOSMedia](ImportOSMedia/) | Exists — ISO/WIM/ESD importer + GUI → `Content/OperatingSystems` catalog |
 
 Shared OEM pack helpers (also used by Media SelectWorkflow): [`../Shared/OemDriverPacks/`](../Shared/OemDriverPacks/).
 
